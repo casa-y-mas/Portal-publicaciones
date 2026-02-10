@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  supervisor
+  editor
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum AccountPlatform {
+  instagram
+  facebook
+}
+
+enum AccountStatus {
+  connected
+  token_expiring
+  disconnected
+}
+
+enum ContentType {
+  post
+  reel
+  story
+  carousel
+}
+
+enum PostStatus {
+  draft
+  pending_approval
+  scheduled
+  published
+  failed
+}
+
+model User {
+  id           String          @id @default(cuid())
+  name         String
+  email        String          @unique
+  role         UserRole
+  status       UserStatus      @default(active)
+  avatar       String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  createdPosts ScheduledPost[] @relation("PostCreator")
+  approvedPosts ScheduledPost[] @relation("PostApprover")
+}
+
+model Project {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  color          String
+  description    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  socialAccounts SocialAccount[]
+  posts          ScheduledPost[]
+}
+
+model SocialAccount {
+  id         String          @id @default(cuid())
+  platform   AccountPlatform
+  username   String
+  type       String
+  status     AccountStatus   @default(connected)
+  expiresAt  DateTime?
+  projectId  String
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  project    Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ScheduledPost {
+  id               String       @id @default(cuid())
+  title            String
+  caption          String
+  contentType      ContentType
+  status           PostStatus
+  publishAt        DateTime
+  recurrenceJson   Json?
+  platformsJson    Json
+  thumbnail        String?
+  projectId        String
+  creatorId        String
+  approverId       String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creator          User         @relation("PostCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  approver         User?        @relation("PostApprover", fields: [approverId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([creatorId])
+  @@index([approverId])
+  @@index([status])
+  @@index([publishAt])
+}
