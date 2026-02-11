@@ -1,101 +1,189 @@
-'use client'
+﻿'use client'
 
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, MoveRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { scheduledPosts } from '@/lib/mock-data'
 import { PostDetailModal } from '@/components/modals/post-detail-modal'
 import { getRecurrenceDates } from '@/lib/recurrence-utils'
+import type { CalendarFilterState, CalendarViewType } from '@/app/calendar/page'
 
 interface CalendarViewProps {
-  view: 'month' | 'week'
-  filters: {
-    platform: string
-    status: string
-    project: string
-  }
+  view: CalendarViewType
+  filters: CalendarFilterState
 }
 
+const platformColor: Record<string, string> = {
+  Instagram: 'bg-pink-500/20 text-pink-700 dark:text-pink-200 border-pink-500/40',
+  Facebook: 'bg-blue-500/20 text-blue-700 dark:text-blue-200 border-blue-500/40',
+  TikTok: 'bg-neutral-500/20 text-neutral-800 dark:text-neutral-100 border-neutral-500/40',
+  'YouTube Shorts': 'bg-red-500/20 text-red-700 dark:text-red-200 border-red-500/40',
+  X: 'bg-gray-500/20 text-gray-700 dark:text-gray-200 border-gray-500/40',
+  LinkedIn: 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-200 border-cyan-500/40',
+}
+
+const weekDays = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
+
 export function CalendarView({ view, filters }: CalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 1, 6))
-  const [selectedPost, setSelectedPost] = useState<typeof scheduledPosts[0] | null>(null)
+  const [currentDate, setCurrentDate] = useState(new Date())
+  const [selectedPost, setSelectedPost] = useState<(typeof scheduledPosts)[number] | null>(null)
+  const [postsState, setPostsState] = useState(scheduledPosts)
 
-  const getDaysInMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }
+  const visiblePosts = useMemo(() => {
+    return postsState.filter((post) => {
+      if (filters.platform !== 'all' && !post.platforms.some((p) => p.toLowerCase().includes(filters.platform))) {
+        return false
+      }
+      if (filters.status !== 'all' && post.status !== filters.status) {
+        return false
+      }
+      if (filters.project !== 'all' && post.project !== filters.project) {
+        return false
+      }
+      if (filters.user !== 'all' && post.creator !== filters.user) {
+        return false
+      }
+      return true
+    })
+  }, [filters.platform, filters.project, filters.status, filters.user, postsState])
 
-  const getFirstDayOfMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
-  }
+  const monthLabel = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
 
-  const daysInMonth = getDaysInMonth(currentDate)
-  const firstDay = getFirstDayOfMonth(currentDate)
-  const monthName = currentDate.toLocaleDateString('es-ES', {
-    month: 'long',
-    year: 'numeric',
-  })
-
-  const getPostsForDate = (day: number) => {
-    const allPosts: typeof scheduledPosts[0][] = []
-    const targetDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-
-    scheduledPosts.forEach(post => {
+  const getPostsForDate = (day: Date) => {
+    const matched: typeof scheduledPosts = []
+    visiblePosts.forEach((post) => {
+      const base = new Date(post.publishAt)
       if (post.recurrence?.enabled) {
-        // Get all recurrence dates for this post
-        const recurrenceDates = getRecurrenceDates(post.publishAt, post.recurrence, 100)
-        // Check if any recurrence date matches this day
-        recurrenceDates.forEach(date => {
-          if (
-            date.getDate() === day &&
-            date.getMonth() === currentDate.getMonth() &&
-            date.getFullYear() === currentDate.getFullYear()
-          ) {
-            allPosts.push(post)
-          }
-        })
-      } else {
-        // Regular post - check if it matches this day
-        const postDate = new Date(post.publishAt)
-        if (
-          postDate.getDate() === day &&
-          postDate.getMonth() === currentDate.getMonth() &&
-          postDate.getFullYear() === currentDate.getFullYear()
-        ) {
-          allPosts.push(post)
+        const list = getRecurrenceDates(base, post.recurrence, 90)
+        if (list.some((date) => date.toDateString() === day.toDateString())) {
+          matched.push(post)
         }
+      } else if (base.toDateString() === day.toDateString()) {
+        matched.push(post)
       }
     })
-
-    return allPosts
+    return matched
   }
 
-  const days = Array.from({ length: firstDay }, () => null)
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i)
+  const shiftPostOneHour = (postId: string) => {
+    setPostsState((prev) =>
+      prev.map((post) => (post.id === postId ? { ...post, publishAt: new Date(post.publishAt.getTime() + 60 * 60 * 1000) } : post)),
+    )
   }
 
-  const getPlatformColor = (platform: string) => {
-    const colors: Record<string, string> = {
-      Instagram: 'bg-pink-500/20 text-pink-700 dark:text-pink-300',
-      Facebook: 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
-      TikTok: 'bg-purple-500/20 text-purple-700 dark:text-purple-300',
-      YouTube: 'bg-red-500/20 text-red-700 dark:text-red-300',
-    }
-    return colors[platform] || 'bg-gray-500/20 text-gray-700 dark:text-gray-300'
+  const renderEvent = (post: (typeof scheduledPosts)[number]) => {
+    const firstPlatform = post.platforms[0] || 'Instagram'
+    return (
+      <div key={post.id} className={`p-2 rounded border text-xs ${platformColor[firstPlatform] || 'bg-muted border-border'}`}>
+        <button type="button" className="font-semibold text-left block w-full" onClick={() => setSelectedPost(post)}>
+          {post.title}
+        </button>
+        <p className="text-[11px] opacity-80 mt-1">{post.publishAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+      </div>
+    )
+  }
+
+  const renderMonth = () => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const firstDay = new Date(year, month, 1).getDay()
+
+    const cells: Array<Date | null> = []
+    for (let i = 0; i < firstDay; i += 1) cells.push(null)
+    for (let day = 1; day <= daysInMonth; day += 1) cells.push(new Date(year, month, day))
+
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-7 gap-2">
+          {weekDays.map((day) => (
+            <div key={day} className="text-center text-sm font-semibold text-muted-foreground py-2">
+              {day}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {cells.map((day, index) => (
+            <div key={`${day?.toISOString() || 'blank'}-${index}`} className={`min-h-28 rounded-lg border p-2 ${day ? 'border-border' : 'border-transparent bg-muted/20'}`}>
+              {day && (
+                <>
+                  <p className="text-sm font-semibold mb-2">{day.getDate()}</p>
+                  <div className="space-y-1">{getPostsForDate(day).slice(0, 3).map(renderEvent)}</div>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const renderWeek = () => {
+    const start = new Date(currentDate)
+    start.setDate(start.getDate() - start.getDay())
+    const days = Array.from({ length: 7 }, (_, idx) => {
+      const day = new Date(start)
+      day.setDate(start.getDate() + idx)
+      return day
+    })
+
+    return (
+      <div className="grid md:grid-cols-7 gap-3">
+        {days.map((day) => (
+          <div key={day.toISOString()} className="border border-border rounded-lg p-3 space-y-2">
+            <p className="text-sm font-semibold">{weekDays[day.getDay()]} {day.getDate()}</p>
+            <div className="space-y-1">{getPostsForDate(day).map(renderEvent)}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const renderDay = () => {
+    const slots = Array.from({ length: 12 }, (_, i) => i + 8)
+    const postsToday = getPostsForDate(currentDate)
+
+    return (
+      <div className="border border-border rounded-lg p-4 space-y-3">
+        {slots.map((hour) => {
+          const slotPosts = postsToday.filter((post) => post.publishAt.getHours() === hour)
+          return (
+            <div key={hour} className="grid grid-cols-12 gap-3 items-start border-b border-border pb-3">
+              <p className="col-span-2 text-xs text-muted-foreground">{`${hour.toString().padStart(2, '0')}:00`}</p>
+              <div className="col-span-10 space-y-2">
+                {slotPosts.length === 0 && <p className="text-xs text-muted-foreground">Sin publicaciones</p>}
+                {slotPosts.map((post) => (
+                  <div key={post.id} className="flex items-center justify-between gap-2">
+                    {renderEvent(post)}
+                    <Button variant="outline" size="sm" onClick={() => shiftPostOneHour(post.id)}>
+                      <MoveRight size={14} className="mr-2" />
+                      Reprogramar +1h
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   return (
     <>
-      <div className="bg-card border border-border rounded-lg p-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold">{monthName.charAt(0).toUpperCase() + monthName.slice(1)}</h2>
+      <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-bold capitalize">{monthLabel}</h2>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
-                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1))
+                setCurrentDate((prev) =>
+                  view === 'day'
+                    ? new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1)
+                    : new Date(prev.getFullYear(), prev.getMonth() - 1, prev.getDate()),
+                )
               }
             >
               <ChevronLeft size={16} />
@@ -104,7 +192,11 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
               variant="outline"
               size="sm"
               onClick={() =>
-                setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
+                setCurrentDate((prev) =>
+                  view === 'day'
+                    ? new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1)
+                    : new Date(prev.getFullYear(), prev.getMonth() + 1, prev.getDate()),
+                )
               }
             >
               <ChevronRight size={16} />
@@ -112,69 +204,20 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
           </div>
         </div>
 
-        {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-2 mb-4">
-          {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(day => (
-            <div key={day} className="text-center text-sm font-semibold text-muted-foreground py-2">
-              {day}
-            </div>
+        <div className="flex flex-wrap gap-2 text-xs">
+          {Object.entries(platformColor).map(([platform, style]) => (
+            <span key={platform} className={`px-2 py-1 rounded border ${style}`}>
+              {platform}
+            </span>
           ))}
         </div>
 
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-2">
-          {days.map((day, index) => {
-            const postsForDay = day ? getPostsForDate(day) : []
-            const isCurrentMonth = day !== null
-            const isToday =
-              day === new Date().getDate() &&
-              currentDate.getMonth() === new Date().getMonth() &&
-              currentDate.getFullYear() === new Date().getFullYear()
-
-            return (
-              <div
-                key={index}
-                className={`min-h-24 p-2 rounded-lg border ${
-                  isCurrentMonth
-                    ? isToday
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
-                    : 'border-transparent bg-muted/20'
-                }`}
-              >
-                {day && (
-                  <>
-                    <p className={`text-sm font-semibold mb-1 ${isToday ? 'text-primary' : 'text-foreground'}`}>
-                      {day}
-                    </p>
-                    <div className="space-y-1">
-                      {postsForDay.slice(0, 2).map(post => (
-                        <button
-                          key={post.id}
-                          onClick={() => setSelectedPost(post)}
-                          className="text-xs px-2 py-1 rounded w-full text-left truncate transition-colors hover:opacity-80"
-                          style={{
-                            backgroundColor: post.platforms[0] === 'Instagram' ? '#ec4899' : '#3b82f6',
-                          }}
-                        >
-                          {post.title}
-                        </button>
-                      ))}
-                      {postsForDay.length > 2 && (
-                        <p className="text-xs text-muted-foreground px-2">+{postsForDay.length - 2} más</p>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        {view === 'month' && renderMonth()}
+        {view === 'week' && renderWeek()}
+        {view === 'day' && renderDay()}
       </div>
 
-      {selectedPost && (
-        <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} />
-      )}
+      {selectedPost && <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} />}
     </>
   )
 }

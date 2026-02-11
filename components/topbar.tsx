@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
-import { Search, Bell, LogOut, Settings, Sun, Moon } from 'lucide-react';
+import { Search, Bell, LogOut, Settings } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,16 +12,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { notifications } from '@/lib/mock-data';
 
 export function Topbar() {
   const [searchOpen, setSearchOpen] = useState(false);
-  const [theme, setTheme] = useState('dark'); // Declare theme and setTheme
-  const [mounted, setMounted] = useState(false); // Declare mounted
+  const unreadCount = notifications.filter((item) => !item.read).length;
 
   return (
     <header className="fixed top-0 right-0 left-0 md:left-64 bg-card border-b border-border h-16 z-30">
       <div className="flex items-center justify-between h-full px-4 md:px-6">
-        {/* Search */}
         <div className="flex-1 max-w-md">
           {searchOpen ? (
             <div className="relative">
@@ -44,18 +44,18 @@ export function Topbar() {
           )}
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-4 ml-4">
-          {/* Notifications */}
-          <button className="relative p-2 hover:bg-muted rounded-lg transition-colors">
+          <Link href="/notifications" className="relative p-2 hover:bg-muted rounded-lg transition-colors">
             <Bell size={20} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-          </button>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-destructive text-white text-[10px] flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </Link>
 
-          {/* Theme toggle */}
           <ThemeToggle />
 
-          {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 pl-3 pr-2 py-2 hover:bg-muted rounded-lg transition-colors">
@@ -66,22 +66,20 @@ export function Topbar() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-4 py-2">
-                <p className="text-sm font-semibold">Carlos López</p>
+                <p className="text-sm font-semibold">Carlos Lopez</p>
                 <p className="text-xs text-muted-foreground">Supervisor</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <Settings size={16} className="mr-2" />
-                <span>Configuración de Cuenta</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell size={16} className="mr-2" />
-                <span>Preferencias</span>
+                <span>Configuracion de cuenta</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
-                <LogOut size={16} className="mr-2" />
-                <span>Cerrar Sesión</span>
+              <DropdownMenuItem asChild className="text-destructive">
+                <Link href="/auth/login" className="flex items-center">
+                  <LogOut size={16} className="mr-2" />
+                  <span>Cerrar sesion</span>
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

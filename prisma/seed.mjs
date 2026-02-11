@@ -5,6 +5,7 @@ const prisma = new PrismaClient()
 async function main() {
   await prisma.scheduledPost.deleteMany()
   await prisma.socialAccount.deleteMany()
+  await prisma.mediaAsset.deleteMany()
   await prisma.project.deleteMany()
   await prisma.user.deleteMany()
 
@@ -83,6 +84,43 @@ async function main() {
     ],
   })
 
+  const mediaAssets = await prisma.$transaction([
+    prisma.mediaAsset.create({
+      data: {
+        fileName: 'torres-del-sol-lanzamiento.mp4',
+        url: 'https://cdn.example.com/media/torres-del-sol-lanzamiento.mp4',
+        mimeType: 'video/mp4',
+        type: 'video',
+        sizeBytes: 24_100_000,
+        projectId: projectByName['Torres del Sol'].id,
+        uploadedById: userByEmail['maria@inmosocial.com'].id,
+      },
+    }),
+    prisma.mediaAsset.create({
+      data: {
+        fileName: 'miraflores-tour.jpg',
+        url: 'https://cdn.example.com/media/miraflores-tour.jpg',
+        mimeType: 'image/jpeg',
+        type: 'image',
+        sizeBytes: 2_150_000,
+        projectId: projectByName['Condominio Miraflores'].id,
+        uploadedById: userByEmail['juan@inmosocial.com'].id,
+      },
+    }),
+    prisma.mediaAsset.create({
+      data: {
+        fileName: 'aurora-testimonios.jpg',
+        url: 'https://cdn.example.com/media/aurora-testimonios.jpg',
+        mimeType: 'image/jpeg',
+        type: 'image',
+        sizeBytes: 1_820_000,
+        projectId: projectByName['Residencial Aurora'].id,
+      },
+    }),
+  ])
+
+  const mediaByFileName = Object.fromEntries(mediaAssets.map((asset) => [asset.fileName, asset]))
+
   await prisma.scheduledPost.createMany({
     data: [
       {
@@ -97,6 +135,7 @@ async function main() {
         projectId: projectByName['Torres del Sol'].id,
         creatorId: userByEmail['maria@inmosocial.com'].id,
         approverId: userByEmail['carlos@inmosocial.com'].id,
+        mediaAssetId: mediaByFileName['torres-del-sol-lanzamiento.mp4'].id,
       },
       {
         title: 'Tour virtual Miraflores',
@@ -108,6 +147,7 @@ async function main() {
         thumbnail: 'camera',
         projectId: projectByName['Condominio Miraflores'].id,
         creatorId: userByEmail['juan@inmosocial.com'].id,
+        mediaAssetId: mediaByFileName['miraflores-tour.jpg'].id,
       },
       {
         title: 'Testimonios de clientes',
@@ -120,17 +160,19 @@ async function main() {
         projectId: projectByName['Residencial Aurora'].id,
         creatorId: userByEmail['juan@inmosocial.com'].id,
         approverId: userByEmail['carlos@inmosocial.com'].id,
+        mediaAssetId: mediaByFileName['aurora-testimonios.jpg'].id,
       },
     ],
   })
 
-  const [userCount, projectCount, postCount] = await Promise.all([
+  const [userCount, projectCount, mediaAssetCount, postCount] = await Promise.all([
     prisma.user.count(),
     prisma.project.count(),
+    prisma.mediaAsset.count(),
     prisma.scheduledPost.count(),
   ])
 
-  console.log('Seed complete:', { userCount, projectCount, postCount })
+  console.log('Seed complete:', { userCount, projectCount, mediaAssetCount, postCount })
 }
 
 main()

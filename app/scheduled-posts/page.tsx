@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { Breadcrumbs } from '@/components/breadcrumbs'
@@ -11,6 +11,7 @@ export default function ScheduledPostsPage() {
     platform: 'all',
     status: 'all',
     project: 'all',
+    user: 'all',
   })
 
   return (
@@ -19,7 +20,7 @@ export default function ScheduledPostsPage() {
 
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Scheduled Posts</h1>
-        <p className="text-muted-foreground">Manage all your programmed content</p>
+        <p className="text-muted-foreground">Gestion completa de borrador, aprobacion, publicacion y cancelacion.</p>
       </div>
 
       <div className="space-y-6">

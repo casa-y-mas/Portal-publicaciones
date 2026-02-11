@@ -11,10 +11,16 @@ const breadcrumbMap: Record<string, string> = {
   '/create': 'Create Post',
   '/library': 'Media Library',
   '/approvals': 'Approvals',
+  '/projects': 'Projects',
+  '/reports': 'Reports',
+  '/notifications': 'Notifications',
   '/social-accounts': 'Social Accounts',
   '/logs': 'Logs',
   '/settings': 'Settings',
   '/users': 'Users',
+  '/auth': 'Auth',
+  '/auth/login': 'Login',
+  '/auth/forgot-password': 'Forgot Password',
 };
 
 export function Breadcrumbs() {

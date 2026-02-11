@@ -24,6 +24,7 @@ export default function UsersPage() {
       admin: 'bg-red-500/10 text-red-600 dark:text-red-400',
       supervisor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
       editor: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      viewer: 'bg-neutral-500/10 text-neutral-600 dark:text-neutral-300',
     }
     return colors[role] || 'bg-gray-500/10 text-gray-600 dark:text-gray-400'
   }
@@ -202,6 +203,7 @@ export default function UsersPage() {
                 <select className="w-full bg-muted border border-border rounded-lg px-4 py-2 text-foreground">
                   <option value="editor">Editor</option>
                   <option value="supervisor">Supervisor</option>
+                  <option value="viewer">Solo lectura</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
