@@ -1,22 +1,38 @@
-﻿'use client';
+'use client'
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { Search, Bell, LogOut, Settings } from 'lucide-react';
+import Link from 'next/link'
+import { useState } from 'react'
+import { useSession, signOut } from 'next-auth/react'
+import { Search, Bell, LogOut, Settings } from 'lucide-react'
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { notifications } from '@/lib/mock-data';
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { notifications } from '@/lib/mock-data'
 
 export function Topbar() {
-  const [searchOpen, setSearchOpen] = useState(false);
-  const unreadCount = notifications.filter((item) => !item.read).length;
+  const [searchOpen, setSearchOpen] = useState(false)
+  const { data: session } = useSession()
+  const unreadCount = notifications.filter((item) => !item.read).length
+
+  const userName = session?.user?.name ?? 'Usuario'
+  const userRole = session?.user?.role ?? 'editor'
+  const userInitials = userName
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
+  async function handleSignOut() {
+    await signOut({ callbackUrl: '/auth/login' })
+  }
 
   return (
     <header className="fixed top-0 right-0 left-0 md:left-64 bg-card border-b border-border h-16 z-30">
@@ -60,14 +76,14 @@ export function Topbar() {
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 pl-3 pr-2 py-2 hover:bg-muted rounded-lg transition-colors">
                 <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-                  CL
+                  {userInitials}
                 </div>
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-4 py-2">
-                <p className="text-sm font-semibold">Carlos Lopez</p>
-                <p className="text-xs text-muted-foreground">Supervisor</p>
+                <p className="text-sm font-semibold">{userName}</p>
+                <p className="text-xs text-muted-foreground capitalize">{userRole}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
@@ -75,16 +91,14 @@ export function Topbar() {
                 <span>Configuracion de cuenta</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild className="text-destructive">
-                <Link href="/auth/login" className="flex items-center">
-                  <LogOut size={16} className="mr-2" />
-                  <span>Cerrar sesion</span>
-                </Link>
+              <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
+                <LogOut size={16} className="mr-2" />
+                <span>Cerrar sesion</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
     </header>
-  );
+  )
 }

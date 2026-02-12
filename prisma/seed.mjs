@@ -1,8 +1,11 @@
 import { PrismaClient } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
+  const defaultPasswordHash = await bcrypt.hash('Admin123!', 10)
+
   await prisma.scheduledPost.deleteMany()
   await prisma.socialAccount.deleteMany()
   await prisma.mediaAsset.deleteMany()
@@ -14,6 +17,7 @@ async function main() {
       data: {
         name: 'Maria Garcia',
         email: 'maria@inmosocial.com',
+        passwordHash: defaultPasswordHash,
         role: 'editor',
         status: 'active',
       },
@@ -22,6 +26,7 @@ async function main() {
       data: {
         name: 'Juan Martinez',
         email: 'juan@inmosocial.com',
+        passwordHash: defaultPasswordHash,
         role: 'editor',
         status: 'active',
       },
@@ -30,6 +35,7 @@ async function main() {
       data: {
         name: 'Carlos Lopez',
         email: 'carlos@inmosocial.com',
+        passwordHash: defaultPasswordHash,
         role: 'supervisor',
         status: 'active',
       },
