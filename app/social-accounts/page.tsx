@@ -1,43 +1,21 @@
-﻿'use client'
+'use client'
 
+import { Plus, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+
+import { StatusBadge } from '@/components/base/status-badge'
 import { Breadcrumbs } from '@/components/breadcrumbs'
-import { socialAccounts } from '@/lib/mock-data'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Check, RefreshCw, Trash2, Plus, ShieldCheck } from 'lucide-react'
+import { socialAccounts } from '@/lib/mock-data'
 
 export default function SocialAccountsPage() {
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, { bg: string; text: string; border: string }> = {
-      connected: {
-        bg: 'bg-green-500/10',
-        text: 'text-green-600 dark:text-green-300',
-        border: 'border-green-500/20',
-      },
-      'token-expiring': {
-        bg: 'bg-orange-500/10',
-        text: 'text-orange-600 dark:text-orange-300',
-        border: 'border-orange-500/20',
-      },
-    }
-    return colors[status] || colors.connected
-  }
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      connected: 'Conectada',
-      'token-expiring': 'Token por expirar',
-    }
-    return labels[status] || status
-  }
-
   return (
     <div>
       <Breadcrumbs />
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Social Accounts</h1>
-          <p className="text-muted-foreground">OAuth Meta, tokens, permisos, pagina Facebook y cuenta Instagram vinculada.</p>
+          <h1 className="view-title">Social Accounts</h1>
+          <p className="view-subtitle">OAuth Meta, tokens, permisos, pagina Facebook y cuenta Instagram vinculada.</p>
         </div>
         <Button>
           <Plus size={16} className="mr-2" />
@@ -45,7 +23,7 @@ export default function SocialAccountsPage() {
         </Button>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-6 mb-6">
+      <div className="surface-card p-6 mb-6">
         <h3 className="text-lg font-semibold mb-3">Flujo recomendado (Fase 1)</h3>
         <div className="grid md:grid-cols-2 gap-6 text-sm text-muted-foreground">
           <div>
@@ -66,17 +44,13 @@ export default function SocialAccountsPage() {
 
       <div className="space-y-4">
         {socialAccounts.map((account) => {
-          const colors = getStatusColor(account.status)
-
+          const normalizedStatus = account.status === 'token-expiring' ? 'token_expiring' : account.status
           return (
-            <div key={account.id} className={`bg-card border-2 rounded-lg p-6 flex items-start justify-between ${colors.border}`}>
+            <div key={account.id} className="surface-card p-6 flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h3 className="text-lg font-semibold">{account.username}</h3>
-                  <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold ${colors.bg} ${colors.text}`}>
-                    {account.status === 'token-expiring' ? <AlertCircle size={14} /> : <Check size={14} />}
-                    {getStatusLabel(account.status)}
-                  </div>
+                  <StatusBadge status={normalizedStatus} />
                 </div>
 
                 <div className="grid sm:grid-cols-4 gap-4 mt-4 mb-3">
@@ -104,7 +78,7 @@ export default function SocialAccountsPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2 ml-4">
+              <div className="flex gap-2">
                 <Button variant="outline" size="sm">
                   <RefreshCw size={16} />
                 </Button>

@@ -1,11 +1,15 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
-import { scheduledPosts } from '@/lib/mock-data'
-import { Button } from '@/components/ui/button'
 import { Eye, Edit2, Copy, X, Rocket, RefreshCcw } from 'lucide-react'
-import { PostDetailModal } from '@/components/modals/post-detail-modal'
+
+import { DataTableCard } from '@/components/base/data-table'
+import { StatusBadge } from '@/components/base/status-badge'
+import { PostDetailModal, type PostDetail } from '@/components/modals/post-detail-modal'
 import { RecurrenceBadge } from '@/components/recurrence-badge'
+import { Button } from '@/components/ui/button'
+import { TableCell, TableRow } from '@/components/ui/table'
+import { scheduledPosts } from '@/lib/mock-data'
 
 interface ScheduledPostsTableProps {
   filters: {
@@ -17,30 +21,24 @@ interface ScheduledPostsTableProps {
   }
 }
 
-const statusStyle: Record<string, string> = {
-  draft: 'bg-gray-500/10 text-gray-600 dark:text-gray-300',
-  'pending-approval': 'bg-orange-500/10 text-orange-600 dark:text-orange-300',
-  approved: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300',
-  scheduled: 'bg-blue-500/10 text-blue-600 dark:text-blue-300',
-  publishing: 'bg-violet-500/10 text-violet-600 dark:text-violet-300',
-  published: 'bg-green-500/10 text-green-600 dark:text-green-300',
-  failed: 'bg-red-500/10 text-red-600 dark:text-red-300',
-  cancelled: 'bg-neutral-500/10 text-neutral-600 dark:text-neutral-300',
-}
+const columns = [
+  { key: 'title', label: 'Titulo' },
+  { key: 'platforms', label: 'Red' },
+  { key: 'project', label: 'Proyecto' },
+  { key: 'publishAt', label: 'Publicar' },
+  { key: 'sequence', label: 'Secuencia' },
+  { key: 'recurrence', label: 'Repeticion' },
+  { key: 'status', label: 'Estado' },
+  { key: 'actions', label: 'Acciones' },
+]
 
-const statusLabel: Record<string, string> = {
-  draft: 'Borrador',
-  'pending-approval': 'Pendiente',
-  approved: 'Aprobado',
-  scheduled: 'Programado',
-  publishing: 'Publicando',
-  published: 'Publicado',
-  failed: 'Fallido',
-  cancelled: 'Cancelado',
-}
+const toPostDetail = (post: (typeof scheduledPosts)[number]): PostDetail => ({
+  ...post,
+  publishAt: post.publishAt.toISOString(),
+})
 
 export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
-  const [selectedPost, setSelectedPost] = useState<(typeof scheduledPosts)[number] | null>(null)
+  const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null)
 
   const filteredPosts = scheduledPosts.filter((post) => {
     const text = `${post.title} ${post.caption}`.toLowerCase()
@@ -54,83 +52,57 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
 
   return (
     <>
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Titulo</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Red</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Proyecto</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Publicar</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Secuencia</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Repeticion</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Estado</th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPosts.map((post) => (
-                <tr key={post.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-4 text-sm font-medium">{post.title}</td>
-                  <td className="px-4 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {post.platforms.map((platform) => (
-                        <span key={platform} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                          {platform}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-sm">{post.project}</td>
-                  <td className="px-4 py-4 text-sm text-muted-foreground">{post.publishAt.toLocaleString()}</td>
-                  <td className="px-4 py-4 text-sm text-muted-foreground">
-                    {post.sequenceGroupId ? `Grupo ${post.sequenceGroupId} / #${post.sequenceOrder || 1}` : 'No'}
-                  </td>
-                  <td className="px-4 py-4">
-                    <RecurrenceBadge recurrence={post.recurrence} />
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${statusStyle[post.status] || statusStyle.scheduled}`}>
-                      {statusLabel[post.status] || post.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedPost(post)} className="h-8 w-8 p-0">
-                        <Eye size={16} />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <Edit2 size={16} />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <Copy size={16} />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <RefreshCcw size={16} />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-primary">
-                        <Rocket size={16} />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive">
-                        <X size={16} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <DataTableCard columns={columns} empty={filteredPosts.length === 0} emptyMessage="No hay publicaciones para estos filtros.">
+        {filteredPosts.map((post) => (
+          <TableRow key={post.id} className="hover:bg-muted/30">
+            <TableCell className="text-sm font-medium">{post.title}</TableCell>
+            <TableCell>
+              <div className="flex flex-wrap gap-1">
+                {post.platforms.map((platform) => (
+                  <span key={platform} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                    {platform}
+                  </span>
+                ))}
+              </div>
+            </TableCell>
+            <TableCell className="text-sm">{post.project}</TableCell>
+            <TableCell className="text-sm text-muted-foreground">{post.publishAt.toLocaleString()}</TableCell>
+            <TableCell className="text-sm text-muted-foreground">
+              {post.sequenceGroupId ? `Grupo ${post.sequenceGroupId} / #${post.sequenceOrder || 1}` : 'No'}
+            </TableCell>
+            <TableCell>
+              <RecurrenceBadge recurrence={post.recurrence} />
+            </TableCell>
+            <TableCell>
+              <StatusBadge status={post.status} />
+            </TableCell>
+            <TableCell>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedPost(toPostDetail(post))} className="h-8 w-8 p-0">
+                  <Eye size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Edit2 size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Copy size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <RefreshCcw size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-primary">
+                  <Rocket size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive">
+                  <X size={16} />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DataTableCard>
 
-        {filteredPosts.length === 0 && (
-          <div className="p-12 text-center">
-            <p className="text-muted-foreground">No hay publicaciones para estos filtros.</p>
-          </div>
-        )}
-      </div>
-
-      {selectedPost && <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} />}
+      {selectedPost ? <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} /> : null}
     </>
   )
 }

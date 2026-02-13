@@ -5,6 +5,13 @@ const prisma = new PrismaClient()
 
 async function main() {
   const defaultPasswordHash = await bcrypt.hash('Admin123!', 10)
+  const now = new Date()
+  const daysFromNow = (days, hour, minute = 0) => {
+    const value = new Date(now)
+    value.setDate(value.getDate() + days)
+    value.setHours(hour, minute, 0, 0)
+    return value
+  }
 
   await prisma.scheduledPost.deleteMany()
   await prisma.socialAccount.deleteMany()
@@ -134,7 +141,7 @@ async function main() {
         caption: 'Conoce nuestro nuevo proyecto residencial...',
         contentType: 'reel',
         status: 'scheduled',
-        publishAt: new Date('2026-02-11T15:00:00.000Z'),
+        publishAt: daysFromNow(1, 15),
         platformsJson: ['Instagram', 'Facebook'],
         recurrenceJson: { enabled: true, type: 'weekly', endType: 'date', endDate: '2026-04-08' },
         thumbnail: 'building',
@@ -148,7 +155,7 @@ async function main() {
         caption: 'Descubre las amenidades de nuestro condominio...',
         contentType: 'post',
         status: 'pending_approval',
-        publishAt: new Date('2026-02-12T19:30:00.000Z'),
+        publishAt: daysFromNow(2, 19, 30),
         platformsJson: ['Instagram'],
         thumbnail: 'camera',
         projectId: projectByName['Condominio Miraflores'].id,
@@ -160,7 +167,7 @@ async function main() {
         caption: 'Escucha a nuestros clientes satisfechos...',
         contentType: 'carousel',
         status: 'published',
-        publishAt: new Date('2026-02-05T21:00:00.000Z'),
+        publishAt: daysFromNow(-2, 21),
         platformsJson: ['Facebook', 'Instagram'],
         thumbnail: 'star',
         projectId: projectByName['Residencial Aurora'].id,

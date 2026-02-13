@@ -18,16 +18,16 @@ export function LayoutClient({
 
   return (
     <SessionProvider>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         {isAuthPage ? (
-          <main className="min-h-screen bg-background">
+          <main className="min-h-screen bg-background transition-colors">
             <div className="p-4 md:p-8">{children}</div>
           </main>
         ) : (
           <>
             <Sidebar />
             <Topbar />
-            <main className="pt-16 md:pt-16 md:ml-64 min-h-screen bg-background">
+            <main className="pt-16 md:pt-16 md:ml-64 min-h-screen bg-background transition-colors">
               <div className="p-4 md:p-8">{children}</div>
             </main>
           </>

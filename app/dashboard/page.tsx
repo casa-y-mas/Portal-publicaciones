@@ -1,25 +1,24 @@
-'use client'
-
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { DashboardStats } from '@/components/dashboard/dashboard-stats'
 import { UpcomingPostsTable } from '@/components/dashboard/upcoming-posts-table'
 import { PublicationChart } from '@/components/dashboard/publication-chart'
+import { getDashboardStats, getUpcomingPosts } from '@/lib/dashboard-data'
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const [stats, upcomingPosts] = await Promise.all([getDashboardStats(), getUpcomingPosts(5)])
+
   return (
     <div>
       <Breadcrumbs />
-      
+
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
         <p className="text-muted-foreground">Overview of your social media activity</p>
       </div>
 
       <div className="grid gap-6">
-        {/* Stats Grid */}
-        <DashboardStats />
+        <DashboardStats stats={stats} />
 
-        {/* Charts and Tables */}
         <div className="grid md:grid-cols-2 gap-6">
           <PublicationChart />
           <div className="bg-card border border-border rounded-lg p-6">
@@ -56,8 +55,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Upcoming Posts */}
-        <UpcomingPostsTable />
+        <UpcomingPostsTable posts={upcomingPosts} />
       </div>
     </div>
   )

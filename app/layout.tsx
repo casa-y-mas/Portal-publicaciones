@@ -5,8 +5,8 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { LayoutClient } from './layout-client'
 
-const _geist = Geist({ subsets: ['latin'] })
-const _geistMono = Geist_Mono({ subsets: ['latin'] })
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
+const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
   title: 'InmoSocial Suite - Social Media Dashboard',
@@ -21,7 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="font-sans antialiased">
+      <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         <LayoutClient>{children}</LayoutClient>
       </body>
     </html>

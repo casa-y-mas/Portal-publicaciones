@@ -1,11 +1,13 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
+import { Copy, Download, Play, Search, Trash2, UploadCloud } from 'lucide-react'
+
+import { AppModal } from '@/components/base/app-modal'
 import { Breadcrumbs } from '@/components/breadcrumbs'
-import { mediaLibrary, projects } from '@/lib/mock-data'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Play, Search, Download, Copy, Trash2, UploadCloud } from 'lucide-react'
+import { mediaLibrary, projects } from '@/lib/mock-data'
 
 export default function LibraryPage() {
   const [search, setSearch] = useState('')
@@ -30,8 +32,8 @@ export default function LibraryPage() {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Media Library</h1>
-          <p className="text-muted-foreground">Galeria multimedia con categorias, tags, filtros por proyecto y metadata.</p>
+          <h1 className="view-title">Media Library</h1>
+          <p className="view-subtitle">Galeria multimedia con categorias, tags, filtros por proyecto y metadata.</p>
         </div>
         <Button>
           <UploadCloud size={16} className="mr-2" />
@@ -39,7 +41,7 @@ export default function LibraryPage() {
         </Button>
       </div>
 
-      <div className="bg-card border border-border rounded-lg p-4 mb-6 grid md:grid-cols-3 gap-3">
+      <div className="surface-card p-4 mb-6 grid md:grid-cols-3 gap-3">
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
           <Input
@@ -47,14 +49,14 @@ export default function LibraryPage() {
             placeholder="Buscar por nombre o tags..."
             className="pl-10"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
           />
         </div>
         <div className="flex gap-2">
           <select
             value={projectFilter}
-            onChange={(e) => setProjectFilter(e.target.value)}
-            className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm"
+            onChange={(event) => setProjectFilter(event.target.value)}
+            className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground"
           >
             <option value="all">Todos los proyectos</option>
             {projects.map((project) => (
@@ -65,8 +67,8 @@ export default function LibraryPage() {
           </select>
           <select
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm"
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="flex-1 bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground"
           >
             {categories.map((category) => (
               <option key={category} value={category}>
@@ -81,21 +83,21 @@ export default function LibraryPage() {
         {filteredMedia.map((media) => (
           <div
             key={media.id}
-            className="bg-card border border-border rounded-lg overflow-hidden hover:border-primary/50 transition-colors group cursor-pointer"
+            className="surface-card overflow-hidden hover:border-primary/40 transition-colors group cursor-pointer"
             onClick={() => setSelectedMedia(media)}
           >
             <div className="relative bg-muted aspect-square flex items-center justify-center overflow-hidden">
               {media.type === 'video' ? (
                 <>
-                  <div className="text-2xl">Video</div>
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                    <Play size={26} className="text-white" />
+                  <div className="text-2xl text-muted-foreground">Video</div>
+                  <div className="absolute inset-0 bg-foreground/10 group-hover:bg-foreground/20 transition-colors flex items-center justify-center">
+                    <Play size={26} className="text-foreground" />
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="text-2xl">Imagen</div>
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors" />
+                  <div className="text-2xl text-muted-foreground">Imagen</div>
+                  <div className="absolute inset-0 bg-foreground/10 group-hover:bg-foreground/20 transition-colors" />
                 </>
               )}
             </div>
@@ -103,7 +105,9 @@ export default function LibraryPage() {
             <div className="p-4 space-y-1">
               <p className="text-sm font-semibold text-foreground truncate">{media.filename}</p>
               <p className="text-xs text-muted-foreground">{media.project}</p>
-              <p className="text-xs text-muted-foreground">{media.category} • {media.thumbnail}</p>
+              <p className="text-xs text-muted-foreground">
+                {media.category} • {media.thumbnail}
+              </p>
               <div className="flex gap-1 mt-2 flex-wrap">
                 {media.tags.slice(0, 3).map((tag) => (
                   <span key={tag} className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded">
@@ -116,84 +120,84 @@ export default function LibraryPage() {
         ))}
       </div>
 
-      {selectedMedia && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-card border-b border-border flex items-center justify-between p-6">
-              <h2 className="text-xl font-bold">Detalle de media</h2>
-              <button onClick={() => setSelectedMedia(null)} className="p-1 hover:bg-muted rounded-lg transition-colors">X</button>
+      <AppModal
+        open={Boolean(selectedMedia)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedMedia(null)
+        }}
+        title="Detalle de media"
+        footer={
+          <>
+            <Button variant="outline">
+              <Copy size={16} className="mr-2" />
+              Usar en post
+            </Button>
+            <Button variant="outline">
+              <Download size={16} className="mr-2" />
+              Descargar
+            </Button>
+            <Button variant="destructive">
+              <Trash2 size={16} className="mr-2" />
+              Eliminar
+            </Button>
+          </>
+        }
+      >
+        {selectedMedia ? (
+          <div className="space-y-6">
+            <div className="surface-muted p-12 text-center">
+              <div className="text-5xl text-muted-foreground mb-3">{selectedMedia.type === 'video' ? 'Video' : 'Imagen'}</div>
+              <p className="text-sm text-muted-foreground">Preview de contenido</p>
             </div>
 
-            <div className="p-6 space-y-6">
-              <div className="bg-muted rounded-lg p-12 text-center">
-                <div className="text-5xl mb-3">{selectedMedia.type === 'video' ? 'Video' : 'Imagen'}</div>
-                <p className="text-sm text-muted-foreground">Preview de contenido</p>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Archivo</label>
-                  <p className="text-foreground">{selectedMedia.filename}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Proyecto</label>
-                  <p className="text-foreground">{selectedMedia.project}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Tipo</label>
-                  <p className="text-foreground capitalize">{selectedMedia.type}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Categoria</label>
-                  <p className="text-foreground">{selectedMedia.category}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Duracion</label>
-                  <p className="text-foreground">{selectedMedia.duration || 'No aplica'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Tamano</label>
-                  <p className="text-foreground">{selectedMedia.size}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Resolucion</label>
-                  <p className="text-foreground">{selectedMedia.resolution}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Subido por</label>
-                  <p className="text-foreground">{selectedMedia.uploadedBy}</p>
-                </div>
-              </div>
-
+            <div className="grid sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-semibold block mb-2">Tags</label>
-                <div className="flex gap-2 flex-wrap">
-                  {selectedMedia.tags.map((tag) => (
-                    <span key={tag} className="bg-muted text-muted-foreground px-3 py-1 rounded text-sm">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                <label className="text-sm font-semibold block mb-2">Archivo</label>
+                <p className="text-foreground">{selectedMedia.filename}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Proyecto</label>
+                <p className="text-foreground">{selectedMedia.project}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Tipo</label>
+                <p className="text-foreground capitalize">{selectedMedia.type}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Categoria</label>
+                <p className="text-foreground">{selectedMedia.category}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Duracion</label>
+                <p className="text-foreground">{selectedMedia.duration || 'No aplica'}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Tamano</label>
+                <p className="text-foreground">{selectedMedia.size}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Resolucion</label>
+                <p className="text-foreground">{selectedMedia.resolution}</p>
+              </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Subido por</label>
+                <p className="text-foreground">{selectedMedia.uploadedBy}</p>
               </div>
             </div>
 
-            <div className="border-t border-border p-6 bg-muted/30 flex gap-3 justify-end">
-              <Button variant="outline">
-                <Copy size={16} className="mr-2" />
-                Usar en post
-              </Button>
-              <Button variant="outline">
-                <Download size={16} className="mr-2" />
-                Descargar
-              </Button>
-              <Button variant="destructive">
-                <Trash2 size={16} className="mr-2" />
-                Eliminar
-              </Button>
+            <div>
+              <label className="text-sm font-semibold block mb-2">Tags</label>
+              <div className="flex gap-2 flex-wrap">
+                {selectedMedia.tags.map((tag) => (
+                  <span key={tag} className="bg-muted text-muted-foreground px-3 py-1 rounded text-sm">
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </AppModal>
     </div>
   )
 }
