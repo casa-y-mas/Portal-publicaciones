@@ -33,12 +33,12 @@ export default function UsersPage() {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="view-title">Users</h1>
-          <p className="view-subtitle">Manage team members and permissions</p>
+          <h1 className="view-title">Usuarios</h1>
+          <p className="view-subtitle">Gestion de miembros del equipo y permisos</p>
         </div>
         <Button onClick={() => setCreatingUser(true)}>
           <Plus size={16} className="mr-2" />
-          Add User
+          Agregar usuario
         </Button>
       </div>
 
@@ -46,11 +46,11 @@ export default function UsersPage() {
         <Table>
           <TableHeader className="bg-muted/50">
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Correo</TableHead>
+              <TableHead>Rol</TableHead>
+              <TableHead>Estado</TableHead>
+              <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -69,7 +69,7 @@ export default function UsersPage() {
                   <StatusBadge status={user.role} className="capitalize" />
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={user.status} label={user.status === 'active' ? 'Active' : 'Inactive'} />
+                  <StatusBadge status={user.status} label={user.status === 'active' ? 'Activo' : 'Inactivo'} />
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -97,25 +97,25 @@ export default function UsersPage() {
         onOpenChange={(open) => {
           if (!open) setEditingUser(null)
         }}
-        title="Edit User"
+        title="Editar usuario"
         footer={
           <>
             <Button variant="outline" onClick={() => setEditingUser(null)}>
-              Cancel
+              Cancelar
             </Button>
-            <Button onClick={() => setEditingUser(null)}>Save Changes</Button>
+            <Button onClick={() => setEditingUser(null)}>Guardar cambios</Button>
           </>
         }
       >
         {editingUser ? (
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-semibold block mb-2">Name</label>
+              <label className="text-sm font-semibold block mb-2">Nombre</label>
               <Input value={editingUser.name} onChange={(e) => setEditingUser((prev) => (prev ? { ...prev, name: e.target.value } : null))} />
             </div>
 
             <div>
-              <label className="text-sm font-semibold block mb-2">Email</label>
+              <label className="text-sm font-semibold block mb-2">Correo</label>
               <Input
                 type="email"
                 value={editingUser.email}
@@ -124,12 +124,12 @@ export default function UsersPage() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold block mb-2">Role</label>
+              <label className="text-sm font-semibold block mb-2">Rol</label>
               <select className="w-full bg-muted border border-border rounded-lg px-4 py-2 text-foreground">
                 <option value="admin">Admin</option>
                 <option value="supervisor">Supervisor</option>
                 <option value="editor">Editor</option>
-                <option value="viewer">Viewer</option>
+                <option value="viewer">Visualizador</option>
               </select>
             </div>
           </div>
@@ -139,29 +139,29 @@ export default function UsersPage() {
       <AppModal
         open={creatingUser}
         onOpenChange={setCreatingUser}
-        title="Add User"
+        title="Agregar usuario"
         footer={
           <>
             <Button variant="outline" onClick={() => setCreatingUser(false)}>
-              Cancel
+              Cancelar
             </Button>
-            <Button onClick={() => setCreatingUser(false)}>Create User</Button>
+            <Button onClick={() => setCreatingUser(false)}>Crear usuario</Button>
           </>
         }
       >
         <div className="space-y-4">
           <div>
-            <label className="text-sm font-semibold block mb-2">Name</label>
-            <Input placeholder="Full name" />
+            <label className="text-sm font-semibold block mb-2">Nombre</label>
+            <Input placeholder="Nombre completo" />
           </div>
 
           <div>
-            <label className="text-sm font-semibold block mb-2">Email</label>
-            <Input type="email" placeholder="email@example.com" />
+            <label className="text-sm font-semibold block mb-2">Correo</label>
+            <Input type="email" placeholder="correo@ejemplo.com" />
           </div>
 
           <div>
-            <label className="text-sm font-semibold block mb-2">Role</label>
+            <label className="text-sm font-semibold block mb-2">Rol</label>
             <select className="w-full bg-muted border border-border rounded-lg px-4 py-2 text-foreground">
               <option value="editor">Editor</option>
               <option value="supervisor">Supervisor</option>

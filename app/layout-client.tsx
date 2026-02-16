@@ -27,8 +27,8 @@ export function LayoutClient({
           <>
             <Sidebar />
             <Topbar />
-            <main className="pt-16 md:pt-16 md:ml-64 min-h-screen bg-background transition-colors">
-              <div className="p-4 md:p-8">{children}</div>
+            <main className="pt-20 md:ml-64 min-h-screen bg-background transition-colors">
+              <div className="mx-auto w-full max-w-[1600px] p-4 md:p-8">{children}</div>
             </main>
           </>
         )}

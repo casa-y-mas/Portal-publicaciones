@@ -9,7 +9,7 @@ export default function ReportsPage() {
       <Breadcrumbs />
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Reports</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Reportes</h1>
         <p className="text-muted-foreground">Publicaciones por periodo, por red, por proyecto y porcentaje de fallos.</p>
       </div>
 

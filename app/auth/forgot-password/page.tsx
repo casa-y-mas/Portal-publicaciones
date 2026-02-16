@@ -14,13 +14,13 @@ export default function ForgotPasswordPage() {
 
       <div className="bg-card border border-border rounded-lg p-6 space-y-4">
         <div>
-          <label className="text-sm font-semibold block mb-2">Email</label>
+          <label className="text-sm font-semibold block mb-2">Correo</label>
           <Input type="email" placeholder="usuario@inmosocial.com" />
         </div>
         <Button className="w-full">Enviar enlace</Button>
         <div className="text-center">
           <Link href="/auth/login" className="text-sm text-primary hover:underline">
-            Volver a login
+            Volver a inicio de sesion
           </Link>
         </div>
       </div>

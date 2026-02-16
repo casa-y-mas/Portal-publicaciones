@@ -36,13 +36,13 @@ export default function ApprovalsPage() {
       <Breadcrumbs />
 
       <div className="mb-8">
-        <h1 className="view-title">Approvals</h1>
-        <p className="view-subtitle">Review and approve pending posts</p>
+        <h1 className="view-title">Aprobaciones</h1>
+        <p className="view-subtitle">Revision y aprobacion de publicaciones pendientes</p>
       </div>
 
       <div className="space-y-6">
         <div>
-          <h2 className="text-xl font-semibold mb-4">Pending Review ({pendingApprovals.length})</h2>
+          <h2 className="text-xl font-semibold mb-4">Pendientes de revision ({pendingApprovals.length})</h2>
           <div className="space-y-4">
             {pendingApprovals.map((item) => (
               <div key={item.id} className="surface-card p-6">
@@ -50,20 +50,20 @@ export default function ApprovalsPage() {
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold">{item.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Created by {item.creator} • {item.submittedAt.toLocaleDateString()}
+                      Creado por {item.creator} - {item.submittedAt.toLocaleDateString()}
                     </p>
                   </div>
                   <Clock size={20} className="text-muted-foreground" />
                 </div>
 
                 <div className="surface-muted p-4 mb-4">
-                  <p className="text-sm text-muted-foreground mb-2">Caption:</p>
+                  <p className="text-sm text-muted-foreground mb-2">Texto:</p>
                   <p className="text-foreground">{item.caption}</p>
                 </div>
 
                 <div className="grid sm:grid-cols-3 gap-4 mb-6">
                   <div>
-                    <p className="text-xs text-muted-foreground">Platforms</p>
+                    <p className="text-xs text-muted-foreground">Plataformas</p>
                     <div className="flex gap-1 mt-1">
                       {item.platforms.map((platform) => (
                         <span key={platform} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
@@ -73,11 +73,11 @@ export default function ApprovalsPage() {
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Scheduled For</p>
+                    <p className="text-xs text-muted-foreground">Programado para</p>
                     <p className="text-sm font-semibold mt-1">{item.proposedDate.toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Time</p>
+                    <p className="text-xs text-muted-foreground">Hora</p>
                     <p className="text-sm font-semibold mt-1">
                       {item.proposedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
@@ -86,11 +86,11 @@ export default function ApprovalsPage() {
 
                 {rejectionPostId === item.id ? (
                   <div className="surface-muted p-4 mb-4 space-y-3">
-                    <label className="text-sm font-semibold text-foreground block">Reason for Rejection</label>
+                    <label className="text-sm font-semibold text-foreground block">Motivo de rechazo</label>
                     <textarea
                       className="w-full bg-background border border-border rounded-lg p-3 text-foreground placeholder-muted-foreground resize-none"
                       rows={3}
-                      placeholder="Explain why this post was rejected..."
+                      placeholder="Explica por que se rechazo esta publicacion..."
                       value={rejectionReason || ''}
                       onChange={(event) => setRejectionReason(event.target.value)}
                     />
@@ -103,10 +103,10 @@ export default function ApprovalsPage() {
                           setRejectionReason(null)
                         }}
                       >
-                        Cancel
+                        Cancelar
                       </Button>
                       <Button size="sm" variant="destructive" onClick={submitRejection} disabled={!rejectionReason}>
-                        Confirm Rejection
+                        Confirmar rechazo
                       </Button>
                     </div>
                   </div>
@@ -115,7 +115,7 @@ export default function ApprovalsPage() {
                 <div className="flex gap-3">
                   <Button className="flex-1" onClick={() => handleApprove(item.id)}>
                     <CheckCircle size={16} className="mr-2" />
-                    Approve
+                    Aprobar
                   </Button>
                   <Button
                     variant="outline"
@@ -124,7 +124,7 @@ export default function ApprovalsPage() {
                     disabled={rejectionPostId === item.id}
                   >
                     <XCircle size={16} className="mr-2" />
-                    Reject
+                    Rechazar
                   </Button>
                 </div>
               </div>
@@ -133,20 +133,20 @@ export default function ApprovalsPage() {
             {pendingApprovals.length === 0 ? (
               <div className="surface-card p-12 text-center">
                 <CheckCircle size={32} className="mx-auto mb-3 text-muted-foreground" />
-                <p className="text-muted-foreground">No pending approvals</p>
+                <p className="text-muted-foreground">No hay aprobaciones pendientes</p>
               </div>
             ) : null}
           </div>
         </div>
 
         <div className="border-t border-border pt-6">
-          <h2 className="text-xl font-semibold mb-4">Approval History</h2>
+          <h2 className="text-xl font-semibold mb-4">Historial de aprobaciones</h2>
           <div className="space-y-2">
             {approvedItems.map((item) => (
               <div key={item.id} className="surface-card p-4 flex items-center justify-between">
                 <div>
                   <p className="font-semibold">{item.title}</p>
-                  <p className="text-sm text-muted-foreground">Approved • {item.proposedDate.toLocaleDateString()}</p>
+                  <p className="text-sm text-muted-foreground">Aprobado - {item.proposedDate.toLocaleDateString()}</p>
                 </div>
                 <StatusBadge status="approved" />
               </div>

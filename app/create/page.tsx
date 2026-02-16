@@ -63,9 +63,9 @@ export default function CreatePage() {
   const [sequenceIntervalValue, setSequenceIntervalValue] = useState(2)
   const [sequenceIntervalUnit, setSequenceIntervalUnit] = useState<'hours' | 'days'>('hours')
   const [sequenceItems, setSequenceItems] = useState<SequenceItem[]>([
-    { id: '1', order: 1, title: 'Post 1', scheduleAt: '' },
-    { id: '2', order: 2, title: 'Post 2', scheduleAt: '' },
-    { id: '3', order: 3, title: 'Post 3', scheduleAt: '' },
+    { id: '1', order: 1, title: 'Publicacion 1', scheduleAt: '' },
+    { id: '2', order: 2, title: 'Publicacion 2', scheduleAt: '' },
+    { id: '3', order: 3, title: 'Publicacion 3', scheduleAt: '' },
   ])
 
   const [aiTone, setAiTone] = useState<'profesional' | 'juvenil' | 'vendedor' | 'minimalista'>('profesional')
@@ -75,6 +75,12 @@ export default function CreatePage() {
   const platforms = ['Instagram', 'Facebook', 'TikTok', 'YouTube Shorts', 'X', 'LinkedIn']
   const contentTypes = ['post imagen', 'post video', 'carrusel', 'reel', 'story']
   const statuses = ['draft', 'pending-approval', 'approved', 'schedule']
+  const statusLabels: Record<string, string> = {
+    draft: 'Borrador',
+    'pending-approval': 'Pendiente de aprobacion',
+    approved: 'Aprobado',
+    schedule: 'Programado',
+  }
 
   const togglePlatform = (platform: string) => {
     setFormData((prev) => ({
@@ -214,7 +220,7 @@ export default function CreatePage() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-semibold block mb-2">Media de biblioteca</label>
+                  <label className="text-sm font-semibold block mb-2">Archivo de biblioteca</label>
                   <Input
                     value={formData.media}
                     onChange={(e) => setFormData((prev) => ({ ...prev, media: e.target.value }))}
@@ -239,8 +245,8 @@ export default function CreatePage() {
                       onChange={(e) => setAiObjective(e.target.value as typeof aiObjective)}
                       className="flex-1 bg-muted border border-border rounded-lg px-3 py-2"
                     >
-                      <option value="branding">Branding</option>
-                      <option value="leads">Leads WhatsApp</option>
+                      <option value="branding">Marca</option>
+                      <option value="leads">Prospectos por WhatsApp</option>
                       <option value="visitas">Visitas</option>
                       <option value="ventas">Ventas</option>
                     </select>
@@ -274,7 +280,7 @@ export default function CreatePage() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-2">Caption</label>
+                <label className="text-sm font-semibold block mb-2">Texto</label>
                 <textarea
                   className="w-full bg-muted border border-border rounded-lg p-3 text-foreground placeholder-muted-foreground resize-none"
                   rows={4}
@@ -338,7 +344,7 @@ export default function CreatePage() {
                   >
                     <option value="none">Sin secuencia</option>
                     <option value="interval">Por intervalo</option>
-                    <option value="fixed-dates">Fechas fijas por item</option>
+                    <option value="fixed-dates">Fechas fijas por elemento</option>
                   </select>
                 </div>
 
@@ -355,7 +361,7 @@ export default function CreatePage() {
                     onClick={() => applySequencePreset('seq-2')}
                     className="text-xs px-3 py-1 bg-muted rounded border border-border"
                   >
-                    Cargar preset open house
+                    Cargar preset casa abierta
                   </button>
                 </div>
 
@@ -432,13 +438,13 @@ export default function CreatePage() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold capitalize">{status}</p>
+                      <p className="font-semibold">{statusLabels[status] ?? status}</p>
                       {formData.status === status && <Check size={16} className="text-primary" />}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {status === 'draft' && 'Guardar sin publicar'}
                       {status === 'pending-approval' && 'Enviar a supervisor para aprobar o rechazar'}
-                      {status === 'approved' && 'Listo para pasar al scheduler'}
+                      {status === 'approved' && 'Listo para pasar al programador'}
                       {status === 'schedule' && 'Programar ejecucion automatica'}
                     </p>
                   </button>

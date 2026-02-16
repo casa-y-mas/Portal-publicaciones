@@ -49,11 +49,11 @@ const statusLabels: Record<string, string> = {
   admin: 'Admin',
   supervisor: 'Supervisor',
   editor: 'Editor',
-  viewer: 'Viewer',
-  success: 'Success',
-  warning: 'Warning',
+  viewer: 'Visualizador',
+  success: 'Exito',
+  warning: 'Advertencia',
   error: 'Error',
-  info: 'Info',
+  info: 'Informacion',
   planning: 'Planificacion',
 }
 

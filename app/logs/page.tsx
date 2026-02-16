@@ -16,6 +16,13 @@ function mapCodeToStatus(statusCode: number) {
   return 'info'
 }
 
+function mapResultLabel(result: string) {
+  if (result === 'success') return 'Exito'
+  if (result === 'error') return 'Error'
+  if (result === 'queued') return 'En cola'
+  return result
+}
+
 export default function LogsPage() {
   const [expandedLog, setExpandedLog] = useState<string | null>(null)
   const selected = logEntries.find((entry) => entry.id === expandedLog)
@@ -25,17 +32,17 @@ export default function LogsPage() {
       <Breadcrumbs />
 
       <div className="mb-8">
-        <h1 className="view-title">Logs</h1>
-        <p className="view-subtitle">Intentos de publicacion, payload/response y auditoria de cambios.</p>
+        <h1 className="view-title">Registros</h1>
+        <p className="view-subtitle">Intentos de publicacion, solicitud/respuesta y auditoria de cambios.</p>
       </div>
 
       <div className="surface-card overflow-hidden mb-8">
         <Table>
           <TableHeader className="bg-muted/50">
             <TableRow>
-              <TableHead>Post ID</TableHead>
+              <TableHead>ID publicacion</TableHead>
               <TableHead>Plataforma</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Estado</TableHead>
               <TableHead>Resultado</TableHead>
               <TableHead>Hora</TableHead>
               <TableHead>Accion</TableHead>
@@ -49,7 +56,7 @@ export default function LogsPage() {
                 <TableCell>
                   <StatusBadge status={mapCodeToStatus(log.statusCode)} label={`${log.statusCode}`} />
                 </TableCell>
-                <TableCell className="capitalize">{log.result}</TableCell>
+                <TableCell className="capitalize">{mapResultLabel(log.result)}</TableCell>
                 <TableCell className="text-muted-foreground">{log.timestamp.toLocaleString()}</TableCell>
                 <TableCell>
                   <Button variant="ghost" size="sm" onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}>
@@ -72,7 +79,7 @@ export default function LogsPage() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-foreground">Payload</h4>
+                <h4 className="font-semibold text-foreground">Solicitud</h4>
                 <Button variant="ghost" size="sm" className="h-6 px-2">
                   <Copy size={14} />
                 </Button>
@@ -83,7 +90,7 @@ export default function LogsPage() {
             </div>
 
             <div>
-              <h4 className="font-semibold text-foreground mb-2">Response</h4>
+              <h4 className="font-semibold text-foreground mb-2">Respuesta</h4>
               <pre className="bg-background p-3 rounded-lg overflow-x-auto text-foreground">
                 {JSON.stringify(selected.responsePayload, null, 2)}
               </pre>

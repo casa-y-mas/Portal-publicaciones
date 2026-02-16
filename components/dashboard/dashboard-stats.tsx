@@ -4,28 +4,32 @@ import type { DashboardStatsData } from '@/lib/dashboard-data'
 export function DashboardStats({ stats }: { stats: DashboardStatsData }) {
   const items = [
     {
-      label: 'Scheduled Today',
+      label: 'Programadas hoy',
       value: stats.scheduledToday,
       icon: Clock,
-      color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      color: 'bg-primary/12 text-primary',
+      note: 'Seguimiento diario',
     },
     {
-      label: 'This Week',
+      label: 'Esta semana',
       value: stats.scheduledThisWeek,
       icon: Calendar,
-      color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+      color: 'bg-accent/15 text-accent',
+      note: 'Ritmo semanal',
     },
     {
-      label: 'Pending Approval',
+      label: 'Pendientes de aprobacion',
       value: stats.pendingApproval,
       icon: AlertCircle,
-      color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+      color: 'bg-orange-500/15 text-orange-500',
+      note: 'Cola de revision',
     },
     {
-      label: 'Failed Posts',
+      label: 'Publicaciones fallidas',
       value: stats.failedPosts,
       icon: TrendingUp,
-      color: 'bg-red-500/10 text-red-600 dark:text-red-400',
+      color: 'bg-red-500/15 text-red-500',
+      note: 'Atencion operativa',
     },
   ]
 
@@ -36,14 +40,15 @@ export function DashboardStats({ stats }: { stats: DashboardStatsData }) {
         return (
           <div
             key={stat.label}
-            className="bg-card border border-border rounded-lg p-6 hover:border-primary/50 transition-colors"
+            className="surface-card enter-up p-5 hover:border-primary/35 transition-all"
           >
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-3xl font-semibold text-foreground">{stat.value}</p>
+                <p className="text-xs text-muted-foreground mt-1">{stat.note}</p>
               </div>
-              <div className={`${stat.color} p-3 rounded-lg`}>
+              <div className={`${stat.color} p-3 rounded-xl`}>
                 <Icon size={20} />
               </div>
             </div>

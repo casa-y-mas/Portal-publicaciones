@@ -8,13 +8,19 @@ import { Button } from '@/components/ui/button'
 import { socialAccounts } from '@/lib/mock-data'
 
 export default function SocialAccountsPage() {
+  const typeLabel: Record<string, string> = {
+    Business: 'Empresa',
+    Creator: 'Creador',
+    Page: 'Pagina',
+  }
+
   return (
     <div>
       <Breadcrumbs />
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="view-title">Social Accounts</h1>
+          <h1 className="view-title">Cuentas sociales</h1>
           <p className="view-subtitle">OAuth Meta, tokens, permisos, pagina Facebook y cuenta Instagram vinculada.</p>
         </div>
         <Button>
@@ -24,10 +30,10 @@ export default function SocialAccountsPage() {
       </div>
 
       <div className="surface-card p-6 mb-6">
-        <h3 className="text-lg font-semibold mb-3">Flujo recomendado (Fase 1)</h3>
+        <h3 className="text-lg font-semibold mb-3">Flujo recomendado (fase 1)</h3>
         <div className="grid md:grid-cols-2 gap-6 text-sm text-muted-foreground">
           <div>
-            <p className="font-semibold text-foreground mb-2">Instagram Business/Creator + Facebook Pages</p>
+            <p className="font-semibold text-foreground mb-2">Instagram empresa/creador + paginas de Facebook</p>
             <ol className="list-decimal list-inside space-y-1">
               <li>Iniciar OAuth con Meta.</li>
               <li>Validar permisos de publicacion.</li>
@@ -37,7 +43,7 @@ export default function SocialAccountsPage() {
           </div>
           <div>
             <p className="font-semibold text-foreground mb-2">Fase 2 / 3 (modular)</p>
-            <p>TikTok, YouTube Shorts, X y LinkedIn se habilitan por conectores nuevos sin rehacer UI.</p>
+            <p>TikTok, YouTube Shorts, X y LinkedIn se habilitan con conectores nuevos sin rehacer la interfaz.</p>
           </div>
         </div>
       </div>
@@ -60,7 +66,7 @@ export default function SocialAccountsPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Tipo</p>
-                    <p className="text-sm font-semibold text-foreground">{account.type}</p>
+                    <p className="text-sm font-semibold text-foreground">{typeLabel[account.type] ?? account.type}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Pagina Facebook</p>

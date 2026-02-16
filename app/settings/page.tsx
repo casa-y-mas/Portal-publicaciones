@@ -22,14 +22,21 @@ export default function SettingsPage() {
   })
 
   const tabs: Tab[] = ['general', 'security', 'scheduler', 'rules', 'roles']
+  const tabLabels: Record<Tab, string> = {
+    general: 'General',
+    security: 'Seguridad',
+    scheduler: 'Programador',
+    rules: 'Reglas',
+    roles: 'Roles',
+  }
 
   return (
     <div>
       <Breadcrumbs />
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-        <p className="text-muted-foreground">Configuracion administrativa, seguridad, scheduler y reglas de publicacion.</p>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Configuracion</h1>
+        <p className="text-muted-foreground">Configuracion administrativa, seguridad, programador y reglas de publicacion.</p>
       </div>
 
       <div className="grid lg:grid-cols-4 gap-6">
@@ -43,7 +50,7 @@ export default function SettingsPage() {
                   activeTab === tab ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground hover:bg-muted'
                 }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tabLabels[tab]}
               </button>
             ))}
           </div>
@@ -106,11 +113,11 @@ export default function SettingsPage() {
 
           {activeTab === 'scheduler' && (
             <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-              <h3 className="text-lg font-semibold">Scheduler y cola</h3>
-              <p className="text-sm text-muted-foreground">Motor en background con reintentos y manejo de errores API.</p>
+              <h3 className="text-lg font-semibold">Programador y cola</h3>
+              <p className="text-sm text-muted-foreground">Motor en segundo plano con reintentos y manejo de errores de API.</p>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-semibold block mb-2">Intervalo scheduler (min)</label>
+                  <label className="text-sm font-semibold block mb-2">Intervalo del programador (min)</label>
                   <Input
                     type="number"
                     min="1"

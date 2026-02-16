@@ -134,7 +134,7 @@ export const users = [
   { id: '3', name: 'Carlos Lopez', email: 'carlos@inmosocial.com', role: 'supervisor', status: 'active', avatar: 'CL' },
   { id: '4', name: 'Sofia Rodriguez', email: 'sofia@inmosocial.com', role: 'editor', status: 'active', avatar: 'SR' },
   { id: '5', name: 'Andrea Lopez', email: 'andrea@inmosocial.com', role: 'editor', status: 'active', avatar: 'AL' },
-  { id: '6', name: 'Admin User', email: 'admin@inmosocial.com', role: 'admin', status: 'active', avatar: 'AD' },
+  { id: '6', name: 'Usuario Admin', email: 'admin@inmosocial.com', role: 'admin', status: 'active', avatar: 'AD' },
 ]
 
 export const socialAccounts = [
@@ -266,7 +266,7 @@ export const mediaLibrary = [
     project: 'Vista Horizonte',
     category: 'Prelanzamiento',
     tags: ['teaser', 'punta-cana'],
-    uploadedBy: 'Admin User',
+    uploadedBy: 'Usuario Admin',
     uploadedAt: daysFromNow(-2, 13),
   },
 ]
@@ -284,7 +284,7 @@ export const sequenceGroups = [
   },
   {
     id: 'seq-2',
-    name: 'Semana de Open House',
+    name: 'Semana de casa abierta',
     project: 'Residencial Aurora',
     mode: 'fixed-dates',
     intervalValue: null,
@@ -371,7 +371,7 @@ export const scheduledPosts = [
   },
   {
     id: '6',
-    title: 'Post con token vencido',
+    title: 'Publicacion con token vencido',
     platforms: ['Instagram'] as Platform[],
     contentType: 'post',
     publishAt: daysFromNow(-2, 10, 30),
@@ -418,7 +418,7 @@ export const scheduledPosts = [
     contentType: 'post',
     publishAt: daysFromNow(1, 11, 15),
     status: 'scheduled' as PostStatus,
-    creator: 'Admin User',
+    creator: 'Usuario Admin',
     approver: 'Carlos Lopez',
     project: 'Torres del Sol',
     caption: 'Ficha tecnica comparativa para perfil inversionista.',
@@ -460,7 +460,7 @@ export const scheduledPosts = [
     contentType: 'story',
     publishAt: daysFromNow(6, 19),
     status: 'scheduled' as PostStatus,
-    creator: 'Admin User',
+    creator: 'Usuario Admin',
     approver: 'Carlos Lopez',
     project: 'Vista Horizonte',
     caption: 'Pre-lanzamiento exclusivo en zona de playa.',
@@ -524,8 +524,8 @@ export const logEntries = [
     result: 'error',
     timestamp: daysFromNow(-2, 10, 30),
     requestPayload: { caption: 'Contenido no publicado...', mediaId: 'asset_22' },
-    responsePayload: { error: 'Unauthorized', message: 'Token expired' },
-    errorMessage: 'Instagram token expired. Reconnect account to continue.',
+    responsePayload: { error: 'No autorizado', message: 'Token expirado' },
+    errorMessage: 'El token de Instagram expiro. Reconecta la cuenta para continuar.',
   },
   {
     id: '3',
@@ -544,32 +544,32 @@ export const auditTrail = [
     id: 'a1',
     user: 'Carlos Lopez',
     action: 'approval',
-    target: 'Post 11',
-    details: 'Approved and moved to published queue.',
+    target: 'Publicacion 11',
+    details: 'Aprobada y enviada a la cola de publicacion.',
     at: daysFromNow(-4, 8, 30),
   },
   {
     id: 'a2',
     user: 'Maria Garcia',
     action: 'edit_caption',
-    target: 'Post 1',
-    details: 'Caption updated for CTA and hashtags.',
+    target: 'Publicacion 1',
+    details: 'Texto actualizado para CTA y etiquetas.',
     at: daysFromNow(-1, 16, 10),
   },
   {
     id: 'a3',
     user: 'Sofia Rodriguez',
     action: 'reschedule',
-    target: 'Post 8',
-    details: 'Moved publication, then cancelled after campaign change.',
+    target: 'Publicacion 8',
+    details: 'Se movio la publicacion y luego se cancelo tras cambio de campana.',
     at: daysFromNow(-1, 18, 20),
   },
   {
     id: 'a4',
-    user: 'Admin User',
+    user: 'Usuario Admin',
     action: 'connect_social',
     target: 'Parque Central Norte',
-    details: 'Facebook page and Instagram account linked via OAuth.',
+    details: 'Pagina de Facebook y cuenta de Instagram vinculadas via OAuth.',
     at: daysFromNow(-2, 11, 5),
   },
 ]
@@ -579,7 +579,7 @@ export const notifications = [
     id: 'n1',
     type: 'failed',
     title: 'Publicacion fallida en Instagram',
-    message: 'Post 6 fallo por token expirado en @torresdelsolrd.',
+    message: 'La publicacion 6 fallo por token expirado en @torresdelsolrd.',
     createdAt: daysFromNow(-2, 10, 35),
     read: false,
   },
@@ -603,7 +603,7 @@ export const notifications = [
     id: 'n4',
     type: 'success',
     title: 'Publicacion exitosa',
-    message: 'Post 5 publicado correctamente en Facebook e Instagram.',
+    message: 'La publicacion 5 se publico correctamente en Facebook e Instagram.',
     createdAt: daysFromNow(-1, 15, 2),
     read: true,
   },
@@ -661,7 +661,7 @@ export const dashboardStats = {
   engagementRate: 12.9,
 }
 
-const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const dayNames = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
 const publishedMap = new Map<string, number>()
 for (let i = 6; i >= 0; i -= 1) {
   const day = daysFromNow(-i, 0)
@@ -674,3 +674,5 @@ for (const post of weekWindow) {
 }
 
 export const publishedByDay = Array.from(publishedMap.entries()).map(([day, posts]) => ({ day, posts }))
+
+

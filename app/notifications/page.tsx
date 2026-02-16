@@ -18,7 +18,7 @@ export default function NotificationsPage() {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Notifications</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Notificaciones</h1>
           <p className="text-muted-foreground">Alertas de fallos, tokens, aprobaciones y publicaciones exitosas.</p>
         </div>
         <Button variant="outline" onClick={markAllAsRead}>Marcar todas como leidas</Button>

@@ -67,7 +67,7 @@ export function PostDetailModal({ post, onClose }: PostDetailModalProps) {
         </div>
 
         <div>
-          <label className="text-sm font-semibold text-foreground mb-2 block">Caption</label>
+          <label className="text-sm font-semibold text-foreground mb-2 block">Texto</label>
           <p className="text-muted-foreground bg-muted p-4 rounded-lg">{post.caption}</p>
         </div>
 

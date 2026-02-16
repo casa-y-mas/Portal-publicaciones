@@ -19,7 +19,7 @@ export default function ScheduledPostsPage() {
       <Breadcrumbs />
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Scheduled Posts</h1>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Publicaciones programadas</h1>
         <p className="text-muted-foreground">Gestion completa de borrador, aprobacion, publicacion y cancelacion.</p>
       </div>
 

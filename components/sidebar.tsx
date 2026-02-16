@@ -22,19 +22,19 @@ import {
 import { useState } from 'react';
 
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { label: 'Calendar', href: '/calendar', icon: Calendar },
-  { label: 'Scheduled Posts', href: '/scheduled-posts', icon: FileText },
-  { label: 'Create', href: '/create', icon: Plus },
-  { label: 'Library', href: '/library', icon: Library },
-  { label: 'Approvals', href: '/approvals', icon: CheckCircle },
-  { label: 'Projects', href: '/projects', icon: Building2 },
-  { label: 'Reports', href: '/reports', icon: BarChart3 },
-  { label: 'Notifications', href: '/notifications', icon: Bell },
-  { label: 'Social Accounts', href: '/social-accounts', icon: Zap },
-  { label: 'Logs', href: '/logs', icon: LogSquare },
-  { label: 'Settings', href: '/settings', icon: Settings },
-  { label: 'Users', href: '/users', icon: Users },
+  { label: 'Panel', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Calendario', href: '/calendar', icon: Calendar },
+  { label: 'Publicaciones programadas', href: '/scheduled-posts', icon: FileText },
+  { label: 'Crear', href: '/create', icon: Plus },
+  { label: 'Biblioteca', href: '/library', icon: Library },
+  { label: 'Aprobaciones', href: '/approvals', icon: CheckCircle },
+  { label: 'Proyectos', href: '/projects', icon: Building2 },
+  { label: 'Reportes', href: '/reports', icon: BarChart3 },
+  { label: 'Notificaciones', href: '/notifications', icon: Bell },
+  { label: 'Cuentas sociales', href: '/social-accounts', icon: Zap },
+  { label: 'Registros', href: '/logs', icon: LogSquare },
+  { label: 'Configuracion', href: '/settings', icon: Settings },
+  { label: 'Usuarios', href: '/users', icon: Users },
 ];
 
 export function Sidebar() {
@@ -62,17 +62,21 @@ export function Sidebar() {
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-6 border-b border-sidebar-border">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold">
-              IS
+        <div className="p-5 border-b border-sidebar-border bg-gradient-to-b from-primary/20 to-transparent">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-bold shadow">
+              IN
             </div>
-            <h1 className="text-lg font-bold text-sidebar-foreground">InmoSocial</h1>
+            <div>
+              <h1 className="text-lg font-semibold text-sidebar-foreground">InmoSocial</h1>
+              <p className="text-[11px] text-sidebar-foreground/65">Suite de publicaciones</p>
+            </div>
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-4 px-3">
-          <div className="space-y-2">
+        <nav className="sidebar-scroll relative flex-1 overflow-y-auto py-4 px-3 pr-2">
+          <p className="px-3 pb-3 text-[11px] uppercase tracking-[0.18em] text-sidebar-foreground/55">Navegacion</p>
+          <div className="space-y-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
@@ -82,24 +86,25 @@ export function Sidebar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all ${
                     isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium shadow-sm'
+                      : 'text-sidebar-foreground/90 hover:bg-sidebar-accent/35 hover:text-sidebar-accent-foreground'
                   }`}
                 >
-                  <Icon size={20} />
-                  <span>{item.label}</span>
+                  <Icon size={18} />
+                  <span className="text-[15px]">{item.label}</span>
                 </Link>
               );
             })}
           </div>
+          <div className="pointer-events-none sticky bottom-0 h-8 bg-gradient-to-t from-sidebar to-transparent" />
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">
-          <div className="bg-sidebar-accent/30 rounded-lg p-4 text-center">
-            <p className="text-xs text-sidebar-foreground mb-2">Version 1.0.0</p>
-            <button className="text-xs text-sidebar-primary hover:underline w-full">Release Notes</button>
+          <div className="rounded-xl border border-sidebar-border bg-white/5 p-3">
+            <p className="text-xs text-sidebar-foreground/70">Plan activo</p>
+            <p className="text-sm font-semibold text-sidebar-foreground mt-1">Equipo Pro</p>
           </div>
         </div>
       </aside>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Copy, Download, Edit2, Play, Search, Trash2, UploadCloud } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
 
 import { AppModal } from '@/components/base/app-modal'
 import { Breadcrumbs } from '@/components/breadcrumbs'
@@ -99,10 +100,11 @@ function MediaPreview({
     )
   }
 
-  return <img src={url} alt="Preview" className={`w-full h-full object-cover ${className || ''}`} onError={() => setFailed(true)} />
+  return <img src={url} alt="Vista previa" className={`w-full h-full object-cover ${className || ''}`} onError={() => setFailed(true)} />
 }
 
 export default function LibraryPage() {
+  const searchParams = useSearchParams()
   const [items, setItems] = useState<MediaItem[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loading, setLoading] = useState(true)
@@ -144,6 +146,12 @@ export default function LibraryPage() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    const projectIdFromQuery = searchParams.get('projectId')
+    if (!projectIdFromQuery) return
+    setProjectFilter(projectIdFromQuery)
+  }, [searchParams])
+
   const availableTags = useMemo(
     () => Array.from(new Set(items.flatMap((item) => item.tagsJson || []))).sort((a, b) => a.localeCompare(b)),
     [items],
@@ -166,10 +174,13 @@ export default function LibraryPage() {
   const openCreateModal = () => {
     setForm({
       ...emptyForm,
-      projectId: projects[0]?.id ?? '',
+      projectId: projectFilter !== 'all' ? projectFilter : (projects[0]?.id ?? ''),
     })
     setCreateOpen(true)
   }
+
+  const activeProjectName =
+    projectFilter === 'all' ? null : projects.find((project) => project.id === projectFilter)?.name ?? null
 
   const openEditModal = (media: MediaItem) => {
     setForm({
@@ -238,14 +249,14 @@ export default function LibraryPage() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo crear el asset.')
+        throw new Error('No se pudo crear el archivo multimedia.')
       }
 
       setCreateOpen(false)
       setForm(emptyForm)
       await loadData()
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Error creando asset.')
+      setError(createError instanceof Error ? createError.message : 'Error creando archivo multimedia.')
     } finally {
       setSubmitting(false)
     }
@@ -276,14 +287,14 @@ export default function LibraryPage() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo actualizar el asset.')
+        throw new Error('No se pudo actualizar el archivo multimedia.')
       }
 
       setEditingMedia(null)
       setForm(emptyForm)
       await loadData()
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'Error actualizando asset.')
+      setError(updateError instanceof Error ? updateError.message : 'Error actualizando archivo multimedia.')
     } finally {
       setSubmitting(false)
     }
@@ -294,12 +305,12 @@ export default function LibraryPage() {
     try {
       const response = await fetch(`/api/media/${id}`, { method: 'DELETE' })
       if (!response.ok) {
-        throw new Error('No se pudo eliminar el asset.')
+        throw new Error('No se pudo eliminar el archivo multimedia.')
       }
       if (selectedMedia?.id === id) setSelectedMedia(null)
       await loadData()
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Error eliminando asset.')
+      setError(deleteError instanceof Error ? deleteError.message : 'Error eliminando archivo multimedia.')
     }
   }
 
@@ -316,7 +327,7 @@ export default function LibraryPage() {
           }}
           disabled={uploading || submitting}
         />
-        <p className="text-xs text-muted-foreground mt-1">Soporta modo local o S3 mock segun `STORAGE_DRIVER`.</p>
+        <p className="text-xs text-muted-foreground mt-1">Soporta modo local o S3 simulado segun `STORAGE_DRIVER`.</p>
       </div>
 
       <div>
@@ -329,7 +340,7 @@ export default function LibraryPage() {
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="text-sm font-semibold block mb-2">Mime Type</label>
+          <label className="text-sm font-semibold block mb-2">Tipo MIME</label>
           <Input value={form.mimeType} onChange={(event) => setForm((prev) => ({ ...prev, mimeType: event.target.value }))} required />
         </div>
         <div>
@@ -344,7 +355,7 @@ export default function LibraryPage() {
         </div>
       </div>
       <div>
-        <label className="text-sm font-semibold block mb-2">Tags (separados por coma)</label>
+        <label className="text-sm font-semibold block mb-2">Etiquetas (separadas por coma)</label>
         <Input
           value={form.tags}
           onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
@@ -390,12 +401,17 @@ export default function LibraryPage() {
 
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="view-title">Media Library</h1>
-          <p className="view-subtitle">CRUD de assets multimedia con filtros, tags y detalle por proyecto.</p>
+          <h1 className="view-title">Biblioteca multimedia</h1>
+          <p className="view-subtitle">CRUD de archivos multimedia con filtros, etiquetas y detalle por proyecto.</p>
+          {activeProjectName ? (
+            <p className="text-xs text-muted-foreground mt-2">
+              Filtro activo por proyecto: <span className="font-semibold text-foreground">{activeProjectName}</span>
+            </p>
+          ) : null}
         </div>
         <Button onClick={openCreateModal} disabled={loading || projects.length === 0}>
           <UploadCloud size={16} className="mr-2" />
-          Nuevo asset
+          Nuevo archivo
         </Button>
       </div>
 
@@ -438,7 +454,7 @@ export default function LibraryPage() {
           onChange={(event) => setTagFilter(event.target.value)}
           className="bg-muted border border-border rounded-lg px-3 py-2 text-sm text-foreground"
         >
-          <option value="all">Todos los tags</option>
+          <option value="all">Todas las etiquetas</option>
           {availableTags.map((tag) => (
             <option key={tag} value={tag}>
               {tag}
@@ -448,7 +464,7 @@ export default function LibraryPage() {
       </div>
 
       {loading ? (
-        <div className="surface-card p-12 text-center text-muted-foreground">Cargando media library...</div>
+        <div className="surface-card p-12 text-center text-muted-foreground">Cargando biblioteca multimedia...</div>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredMedia.map((media) => (
@@ -493,13 +509,13 @@ export default function LibraryPage() {
       )}
 
       {!loading && filteredMedia.length === 0 ? (
-        <div className="surface-card p-8 text-center text-muted-foreground mt-4">No hay assets para los filtros seleccionados.</div>
+        <div className="surface-card p-8 text-center text-muted-foreground mt-4">No hay archivos para los filtros seleccionados.</div>
       ) : null}
 
       <AppModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="Crear asset"
+        title="Crear archivo"
         footer={
           <>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
@@ -519,7 +535,7 @@ export default function LibraryPage() {
         onOpenChange={(open) => {
           if (!open) setEditingMedia(null)
         }}
-        title="Editar asset"
+        title="Editar archivo"
         footer={
           <>
             <Button variant="outline" onClick={() => setEditingMedia(null)}>
@@ -567,7 +583,7 @@ export default function LibraryPage() {
               <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
                 <MediaPreview url={selectedMedia.url} type={selectedMedia.type} controls className="max-h-[60vh]" />
               </div>
-              <p className="text-sm text-muted-foreground mt-2">Preview de contenido</p>
+              <p className="text-sm text-muted-foreground mt-2">Vista previa del contenido</p>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">
@@ -598,10 +614,10 @@ export default function LibraryPage() {
             </div>
 
             <div>
-              <label className="text-sm font-semibold block mb-2">Tags</label>
+              <label className="text-sm font-semibold block mb-2">Etiquetas</label>
               <div className="flex flex-wrap gap-2">
                 {(selectedMedia.tagsJson || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin tags</p>
+                  <p className="text-sm text-muted-foreground">Sin etiquetas</p>
                 ) : (
                   (selectedMedia.tagsJson || []).map((tag) => (
                     <span key={tag} className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">

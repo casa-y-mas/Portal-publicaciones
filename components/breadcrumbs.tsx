@@ -5,22 +5,22 @@ import { usePathname } from 'next/navigation';
 import { ChevronRight, Home } from 'lucide-react';
 
 const breadcrumbMap: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/calendar': 'Calendar',
-  '/scheduled-posts': 'Scheduled Posts',
-  '/create': 'Create Post',
-  '/library': 'Media Library',
-  '/approvals': 'Approvals',
-  '/projects': 'Projects',
-  '/reports': 'Reports',
-  '/notifications': 'Notifications',
-  '/social-accounts': 'Social Accounts',
-  '/logs': 'Logs',
-  '/settings': 'Settings',
-  '/users': 'Users',
+  '/dashboard': 'Panel',
+  '/calendar': 'Calendario',
+  '/scheduled-posts': 'Publicaciones programadas',
+  '/create': 'Crear publicacion',
+  '/library': 'Biblioteca multimedia',
+  '/approvals': 'Aprobaciones',
+  '/projects': 'Proyectos',
+  '/reports': 'Reportes',
+  '/notifications': 'Notificaciones',
+  '/social-accounts': 'Cuentas sociales',
+  '/logs': 'Registros',
+  '/settings': 'Configuracion',
+  '/users': 'Usuarios',
   '/auth': 'Auth',
-  '/auth/login': 'Login',
-  '/auth/forgot-password': 'Forgot Password',
+  '/auth/login': 'Iniciar sesion',
+  '/auth/forgot-password': 'Recuperar contrasena',
 };
 
 export function Breadcrumbs() {
