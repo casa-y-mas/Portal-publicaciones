@@ -127,6 +127,7 @@ model MediaAsset {
   mimeType       String
   type           MediaAssetType
   sizeBytes      Int
+  tagsJson       Json            @default("[]")
   projectId      String
   uploadedById   String?
   createdAt      DateTime        @default(now())

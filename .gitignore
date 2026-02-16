@@ -41,6 +41,8 @@ coverage/
 tmp/
 temp/
 *.tmp
+.mock-s3/
+public/uploads/
 
 # OS files
 .DS_Store
