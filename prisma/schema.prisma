@@ -45,6 +45,7 @@ enum PostStatus {
   draft
   pending_approval
   scheduled
+  cancelled
   published
   failed
 }

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 export interface PostDetail {
   id: string
   title: string
+  subtitle?: string | null
   status: string
   thumbnail: string | null
   caption: string
@@ -58,6 +59,7 @@ export function PostDetailModal({ post, onClose }: PostDetailModalProps) {
       <div className="space-y-6">
         <div>
           <h3 className="text-2xl font-bold mb-3">{post.title}</h3>
+          {post.subtitle ? <p className="text-sm text-muted-foreground mb-3">{post.subtitle}</p> : null}
           <StatusBadge status={post.status} />
         </div>
 

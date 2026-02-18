@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 import { DataFilters } from '@/components/base/data-filters'
 import { users } from '@/lib/mock-data'
 import {
@@ -21,7 +23,35 @@ interface ScheduledPostsFiltersProps {
   onFiltersChange: (filters: ScheduledPostsFiltersProps['filters']) => void
 }
 
+interface ProjectOption {
+  id: string
+  name: string
+}
+
 export function ScheduledPostsFilters({ filters, onFiltersChange }: ScheduledPostsFiltersProps) {
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const clientUsers = users.filter((user) => user.role === 'editor')
+
+  useEffect(() => {
+    let mounted = true
+    const loadProjects = async () => {
+      try {
+        const response = await fetch('/api/projects')
+        if (!response.ok) return
+        const json = await response.json()
+        if (!mounted) return
+        setProjects((json.items ?? []).map((item: { id: string; name: string }) => ({ id: item.id, name: item.name })))
+      } catch {
+        if (mounted) setProjects([])
+      }
+    }
+
+    loadProjects()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
   const resetFilters = () =>
     onFiltersChange({
       search: '',
@@ -76,11 +106,11 @@ export function ScheduledPostsFilters({ filters, onFiltersChange }: ScheduledPos
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todos los proyectos</SelectItem>
-          <SelectItem value="Residencial Aurora">Residencial Aurora</SelectItem>
-          <SelectItem value="Condominio Miraflores">Condominio Miraflores</SelectItem>
-          <SelectItem value="Torres del Sol">Torres del Sol</SelectItem>
-          <SelectItem value="Vista Horizonte">Vista Horizonte</SelectItem>
-          <SelectItem value="Parque Central Norte">Parque Central Norte</SelectItem>
+          {projects.map((project) => (
+            <SelectItem key={project.id} value={project.name}>
+              {project.name}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
 
@@ -90,7 +120,7 @@ export function ScheduledPostsFilters({ filters, onFiltersChange }: ScheduledPos
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todos los usuarios</SelectItem>
-          {users.map((user) => (
+          {clientUsers.map((user) => (
             <SelectItem key={user.id} value={user.name}>
               {user.name}
             </SelectItem>

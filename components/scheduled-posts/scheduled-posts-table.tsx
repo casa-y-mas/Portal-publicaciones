@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Eye, Edit2, Copy, X, Rocket, RefreshCcw } from 'lucide-react'
 
 import { DataTableCard } from '@/components/base/data-table'
@@ -9,7 +9,6 @@ import { PostDetailModal, type PostDetail } from '@/components/modals/post-detai
 import { RecurrenceBadge } from '@/components/recurrence-badge'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
-import { scheduledPosts } from '@/lib/mock-data'
 
 interface ScheduledPostsTableProps {
   filters: {
@@ -19,6 +18,10 @@ interface ScheduledPostsTableProps {
     project: string
     user: string
   }
+}
+
+interface ScheduledPostItem extends PostDetail {
+  projectId?: string
 }
 
 const columns = [
@@ -32,28 +35,64 @@ const columns = [
   { key: 'actions', label: 'Acciones' },
 ]
 
-const toPostDetail = (post: (typeof scheduledPosts)[number]): PostDetail => ({
-  ...post,
-  publishAt: post.publishAt.toISOString(),
-})
+const normalizeStatus = (value: string) => value.trim().toLowerCase().replace(/_/g, '-')
 
 export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
+  const [posts, setPosts] = useState<ScheduledPostItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null)
 
-  const filteredPosts = scheduledPosts.filter((post) => {
-    const text = `${post.title} ${post.caption}`.toLowerCase()
+  useEffect(() => {
+    let mounted = true
+    const loadPosts = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch('/api/scheduled-posts')
+        if (!response.ok) throw new Error('No se pudieron cargar las publicaciones.')
+        const json = await response.json()
+        if (mounted) setPosts(json.items ?? [])
+      } catch (loadError) {
+        if (mounted) setError(loadError instanceof Error ? loadError.message : 'Error cargando publicaciones.')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    loadPosts()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const filteredPosts = useMemo(() => posts.filter((post) => {
+    const text = `${post.title} ${post.subtitle ?? ''} ${post.caption}`.toLowerCase()
     if (filters.search && !text.includes(filters.search.toLowerCase())) return false
     if (filters.platform !== 'all' && !post.platforms.some((p) => p.toLowerCase().includes(filters.platform))) return false
-    if (filters.status !== 'all' && post.status !== filters.status) return false
+    if (filters.status !== 'all' && normalizeStatus(post.status) !== filters.status) return false
     if (filters.project !== 'all' && post.project !== filters.project) return false
     if (filters.user !== 'all' && post.creator !== filters.user) return false
     return true
-  })
+  }), [posts, filters])
 
   return (
     <>
+      {error ? (
+        <div className="surface-muted p-3 mb-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      ) : null}
+
       <DataTableCard columns={columns} empty={filteredPosts.length === 0} emptyMessage="No hay publicaciones para estos filtros.">
-        {filteredPosts.map((post) => (
+        {loading ? (
+          <TableRow>
+            <TableCell colSpan={columns.length} className="py-10 text-center text-muted-foreground">
+              Cargando publicaciones...
+            </TableCell>
+          </TableRow>
+        ) : null}
+
+        {!loading && filteredPosts.map((post) => (
           <TableRow key={post.id} className="hover:bg-muted/30">
             <TableCell className="text-sm font-medium">{post.title}</TableCell>
             <TableCell>
@@ -66,7 +105,7 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
               </div>
             </TableCell>
             <TableCell className="text-sm">{post.project}</TableCell>
-            <TableCell className="text-sm text-muted-foreground">{post.publishAt.toLocaleString()}</TableCell>
+            <TableCell className="text-sm text-muted-foreground">{new Date(post.publishAt).toLocaleString()}</TableCell>
             <TableCell className="text-sm text-muted-foreground">
               {post.sequenceGroupId ? `Grupo ${post.sequenceGroupId} / #${post.sequenceOrder || 1}` : 'No'}
             </TableCell>
@@ -78,7 +117,7 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
             </TableCell>
             <TableCell>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setSelectedPost(toPostDetail(post))} className="h-8 w-8 p-0">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedPost(post)} className="h-8 w-8 p-0">
                   <Eye size={16} />
                 </Button>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">

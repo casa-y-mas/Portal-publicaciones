@@ -1,20 +1,25 @@
-﻿'use client'
+'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Check, Sparkles } from 'lucide-react'
+
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { RecurrenceSettings, type RecurrenceSettings as RecurrenceSettingsType } from '@/components/create/recurrence-settings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Check, Sparkles } from 'lucide-react'
-import { RecurrenceSettings, type RecurrenceSettings as RecurrenceSettingsType } from '@/components/create/recurrence-settings'
-import { projects, sequenceGroups } from '@/lib/mock-data'
 
-type SequenceMode = 'none' | 'interval' | 'fixed-dates'
+type PostStatusForm = 'draft' | 'scheduled' | 'cancelled'
+type ContentTypeForm = 'post' | 'reel' | 'story' | 'carousel'
 
-interface SequenceItem {
+interface ProjectOption {
   id: string
-  order: number
-  title: string
-  scheduleAt: string
+  name: string
+}
+
+interface MediaOption {
+  id: string
+  fileName: string
 }
 
 const aiSeedByTone: Record<string, string[]> = {
@@ -40,47 +45,134 @@ const aiSeedByTone: Record<string, string[]> = {
   ],
 }
 
+const contentTypeOptions: { value: ContentTypeForm; label: string }[] = [
+  { value: 'post', label: 'Post' },
+  { value: 'reel', label: 'Reel' },
+  { value: 'story', label: 'Story' },
+  { value: 'carousel', label: 'Carrusel' },
+]
+
+const statusOptions: { value: PostStatusForm; label: string; help: string }[] = [
+  { value: 'draft', label: 'Borrador', help: 'Guardar sin publicar.' },
+  { value: 'scheduled', label: 'Programado', help: 'Listo para salida automatica.' },
+  { value: 'cancelled', label: 'Cancelado', help: 'Guardar como cancelado desde el inicio.' },
+]
+
 export default function CreatePage() {
+  const router = useRouter()
+
   const [step, setStep] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [mediaOptions, setMediaOptions] = useState<MediaOption[]>([])
+
   const [formData, setFormData] = useState({
-    project: projects[0]?.name || '',
+    projectId: '',
     platforms: [] as string[],
-    contentType: '',
-    media: '',
+    contentType: 'post' as ContentTypeForm,
+    title: '',
+    subtitle: '',
+    mediaAssetId: '',
     caption: '',
     hashtags: '',
-    script: '',
     scheduledDate: '',
     scheduledTime: '',
-    status: 'schedule',
+    status: 'scheduled' as PostStatusForm,
   })
+
   const [recurrence, setRecurrence] = useState<RecurrenceSettingsType>({
     enabled: false,
     type: null,
     endType: 'never',
   })
-  const [sequenceMode, setSequenceMode] = useState<SequenceMode>('none')
-  const [sequenceIntervalValue, setSequenceIntervalValue] = useState(2)
-  const [sequenceIntervalUnit, setSequenceIntervalUnit] = useState<'hours' | 'days'>('hours')
-  const [sequenceItems, setSequenceItems] = useState<SequenceItem[]>([
-    { id: '1', order: 1, title: 'Publicacion 1', scheduleAt: '' },
-    { id: '2', order: 2, title: 'Publicacion 2', scheduleAt: '' },
-    { id: '3', order: 3, title: 'Publicacion 3', scheduleAt: '' },
-  ])
 
   const [aiTone, setAiTone] = useState<'profesional' | 'juvenil' | 'vendedor' | 'minimalista'>('profesional')
   const [aiObjective, setAiObjective] = useState<'branding' | 'leads' | 'visitas' | 'ventas'>('branding')
   const [aiVariants, setAiVariants] = useState<string[]>([])
 
   const platforms = ['Instagram', 'Facebook', 'TikTok', 'YouTube Shorts', 'X', 'LinkedIn']
-  const contentTypes = ['post imagen', 'post video', 'carrusel', 'reel', 'story']
-  const statuses = ['draft', 'pending-approval', 'approved', 'schedule']
-  const statusLabels: Record<string, string> = {
-    draft: 'Borrador',
-    'pending-approval': 'Pendiente de aprobacion',
-    approved: 'Aprobado',
-    schedule: 'Programado',
-  }
+
+  useEffect(() => {
+    let mounted = true
+    const loadProjects = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch('/api/projects')
+        if (!response.ok) throw new Error('No se pudieron cargar los proyectos.')
+        const json = await response.json()
+        const items = (json.items ?? []).map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))
+
+        if (!mounted) return
+
+        setProjects(items)
+        setFormData((prev) => ({
+          ...prev,
+          projectId: prev.projectId || items[0]?.id || '',
+        }))
+      } catch (loadError) {
+        if (mounted) setError(loadError instanceof Error ? loadError.message : 'Error cargando proyectos.')
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadProjects()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+
+    const loadMedia = async () => {
+      if (!formData.projectId) {
+        setMediaOptions([])
+        setFormData((prev) => ({ ...prev, mediaAssetId: '' }))
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/projects/${formData.projectId}/media`)
+        if (!response.ok) {
+          if (mounted) setMediaOptions([])
+          return
+        }
+        const json = await response.json()
+        const items: MediaOption[] = (json.items ?? []).map((item: { id: string; fileName: string }) => ({
+          id: item.id,
+          fileName: item.fileName,
+        }))
+
+        if (!mounted) return
+
+        setMediaOptions(items)
+        setFormData((prev) => ({
+          ...prev,
+          mediaAssetId: items.some((item) => item.id === prev.mediaAssetId) ? prev.mediaAssetId : '',
+        }))
+      } catch {
+        if (mounted) setMediaOptions([])
+      }
+    }
+
+    loadMedia()
+
+    return () => {
+      mounted = false
+    }
+  }, [formData.projectId])
+
+  const selectedProjectName = useMemo(
+    () => projects.find((project) => project.id === formData.projectId)?.name ?? 'No definido',
+    [projects, formData.projectId],
+  )
 
   const togglePlatform = (platform: string) => {
     setFormData((prev) => ({
@@ -89,19 +181,6 @@ export default function CreatePage() {
         ? prev.platforms.filter((p) => p !== platform)
         : [...prev.platforms, platform],
     }))
-  }
-
-  const applySequencePreset = (groupId: string) => {
-    const group = sequenceGroups.find((item) => item.id === groupId)
-    if (!group) return
-
-    setSequenceMode(group.mode as SequenceMode)
-    if (group.intervalValue) {
-      setSequenceIntervalValue(group.intervalValue)
-    }
-    if (group.intervalUnit === 'day') {
-      setSequenceIntervalUnit('days')
-    }
   }
 
   const generateAI = () => {
@@ -115,34 +194,89 @@ export default function CreatePage() {
 
     const variants = base.slice(0, 3).map((line, index) => `${line} ${objectiveLine[aiObjective]} Variante ${index + 1}.`)
     setAiVariants(variants)
+
     if (!formData.caption) {
       setFormData((prev) => ({
         ...prev,
         caption: variants[0],
         hashtags: '#inmobiliaria #hogar #inversion',
-        script: `${variants[0]}\nEscena 1: fachada\nEscena 2: amenidades\nEscena 3: CTA a WhatsApp`,
+        title: prev.title || `Publicacion ${selectedProjectName}`,
       }))
     }
   }
 
-  const sequenceSummary = useMemo(() => {
-    if (sequenceMode === 'interval') {
-      return `Orden por intervalo: cada ${sequenceIntervalValue} ${sequenceIntervalUnit}`
+  const canGoStep2 = formData.projectId && formData.platforms.length > 0 && formData.contentType
+  const canGoStep3 = formData.title.trim() && formData.subtitle.trim() && formData.caption.trim()
+  const canSubmit = formData.scheduledDate && formData.scheduledTime
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return
+
+    setSubmitting(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const publishAt = new Date(`${formData.scheduledDate}T${formData.scheduledTime}`)
+      if (Number.isNaN(publishAt.getTime())) {
+        throw new Error('Fecha/hora invalida para programacion.')
+      }
+
+      const captionWithHashtags = [formData.caption.trim(), formData.hashtags.trim()].filter(Boolean).join('\n\n')
+
+      const response = await fetch('/api/scheduled-posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title.trim(),
+          subtitle: formData.subtitle.trim(),
+          caption: captionWithHashtags,
+          contentType: formData.contentType,
+          status: formData.status,
+          publishAt: publishAt.toISOString(),
+          projectId: formData.projectId,
+          platforms: formData.platforms,
+          mediaAssetId: formData.mediaAssetId || undefined,
+          recurrence: recurrence.enabled ? recurrence : null,
+        }),
+      })
+
+      if (!response.ok) {
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudo crear la publicacion programada.')
+      }
+
+      setSuccess('Publicacion programada creada correctamente.')
+      setTimeout(() => {
+        router.push('/scheduled-posts')
+        router.refresh()
+      }, 700)
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Error creando publicacion programada.')
+    } finally {
+      setSubmitting(false)
     }
-    if (sequenceMode === 'fixed-dates') {
-      return 'Orden por fechas fijas por item'
-    }
-    return 'Sin secuencia'
-  }, [sequenceIntervalUnit, sequenceIntervalValue, sequenceMode])
+  }
 
   return (
     <div>
       <Breadcrumbs />
 
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Programar publicacion</h1>
-        <p className="text-muted-foreground">Incluye aprobaciones, secuencias, repeticion e IA asistida.</p>
+        <h1 className="text-3xl font-bold text-foreground mb-2">Crear publicacion programada</h1>
+        <p className="text-muted-foreground">UI conectada a API/DB para crear publicaciones reales.</p>
       </div>
+
+      {error ? (
+        <div className="surface-muted p-3 mb-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      ) : null}
+      {success ? (
+        <div className="surface-muted p-3 mb-4 border-primary/30">
+          <p className="text-sm text-primary">{success}</p>
+        </div>
+      ) : null}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -154,38 +288,36 @@ export default function CreatePage() {
 
           {step === 1 && (
             <div className="bg-card border border-border rounded-lg p-6 space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Proyecto y destino</h3>
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-semibold block mb-2">Proyecto inmobiliario</label>
-                    <select
-                      value={formData.project}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, project: e.target.value }))}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-2"
-                    >
-                      {projects.map((project) => (
-                        <option key={project.id} value={project.name}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold block mb-2">Tipo de publicacion</label>
-                    <select
-                      value={formData.contentType}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, contentType: e.target.value }))}
-                      className="w-full bg-muted border border-border rounded-lg px-3 py-2"
-                    >
-                      <option value="">Seleccionar</option>
-                      {contentTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <h3 className="text-lg font-semibold">Proyecto y destino</h3>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-semibold block mb-2">Proyecto inmobiliario</label>
+                  <select
+                    value={formData.projectId}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, projectId: e.target.value }))}
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                    disabled={loading}
+                  >
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold block mb-2">Tipo de publicacion</label>
+                  <select
+                    value={formData.contentType}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, contentType: e.target.value as ContentTypeForm }))}
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                  >
+                    {contentTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -220,49 +352,76 @@ export default function CreatePage() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-semibold block mb-2">Archivo de biblioteca</label>
+                  <label className="text-sm font-semibold block mb-2">Titulo</label>
                   <Input
-                    value={formData.media}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, media: e.target.value }))}
-                    placeholder="Ejemplo: video-torres-01.mp4"
+                    value={formData.title}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                    placeholder="Ej: Lanzamiento Torre Atlantica"
                   />
                 </div>
                 <div>
+                  <label className="text-sm font-semibold block mb-2">Subtitulo</label>
+                  <Input
+                    value={formData.subtitle}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, subtitle: e.target.value }))}
+                    placeholder="Ej: Ultimas unidades con bono de lanzamiento"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold block mb-2">Media de biblioteca (opcional)</label>
+                <select
+                  value={formData.mediaAssetId}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, mediaAssetId: e.target.value }))}
+                  className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                >
+                  <option value="">Sin media asociada</option>
+                  {mediaOptions.map((media) => (
+                    <option key={media.id} value={media.id}>
+                      {media.fileName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
                   <label className="text-sm font-semibold block mb-2">Modo IA</label>
-                  <div className="flex gap-2">
-                    <select
-                      value={aiTone}
-                      onChange={(e) => setAiTone(e.target.value as typeof aiTone)}
-                      className="flex-1 bg-muted border border-border rounded-lg px-3 py-2"
-                    >
-                      <option value="profesional">Profesional</option>
-                      <option value="juvenil">Juvenil</option>
-                      <option value="vendedor">Vendedor</option>
-                      <option value="minimalista">Minimalista</option>
-                    </select>
-                    <select
-                      value={aiObjective}
-                      onChange={(e) => setAiObjective(e.target.value as typeof aiObjective)}
-                      className="flex-1 bg-muted border border-border rounded-lg px-3 py-2"
-                    >
-                      <option value="branding">Marca</option>
-                      <option value="leads">Prospectos por WhatsApp</option>
-                      <option value="visitas">Visitas</option>
-                      <option value="ventas">Ventas</option>
-                    </select>
-                  </div>
+                  <select
+                    value={aiTone}
+                    onChange={(e) => setAiTone(e.target.value as typeof aiTone)}
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                  >
+                    <option value="profesional">Profesional</option>
+                    <option value="juvenil">Juvenil</option>
+                    <option value="vendedor">Vendedor</option>
+                    <option value="minimalista">Minimalista</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold block mb-2">Objetivo IA</label>
+                  <select
+                    value={aiObjective}
+                    onChange={(e) => setAiObjective(e.target.value as typeof aiObjective)}
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                  >
+                    <option value="branding">Marca</option>
+                    <option value="leads">Prospectos por WhatsApp</option>
+                    <option value="visitas">Visitas</option>
+                    <option value="ventas">Ventas</option>
+                  </select>
                 </div>
               </div>
 
               <div className="bg-muted/40 border border-border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">Generador IA (3-5 variantes)</p>
+                  <p className="text-sm font-semibold">Generador IA (3 variantes)</p>
                   <Button type="button" size="sm" onClick={generateAI}>
                     <Sparkles size={14} className="mr-2" />
                     Generar
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">La IA solo sugiere texto. La publicacion nunca sale sin aprobacion.</p>
                 {aiVariants.length > 0 && (
                   <div className="space-y-2">
                     {aiVariants.map((variant) => (
@@ -286,34 +445,24 @@ export default function CreatePage() {
                   rows={4}
                   value={formData.caption}
                   onChange={(e) => setFormData((prev) => ({ ...prev, caption: e.target.value }))}
-                  placeholder="Escribe el caption o usa IA"
+                  placeholder="Escribe el texto principal"
                 />
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Hashtags</label>
-                  <Input
-                    value={formData.hashtags}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, hashtags: e.target.value }))}
-                    placeholder="#inmobiliaria #hogar"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Guion reel</label>
-                  <Input
-                    value={formData.script}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, script: e.target.value }))}
-                    placeholder="Escena 1..."
-                  />
-                </div>
+              <div>
+                <label className="text-sm font-semibold block mb-2">Hashtags (opcional)</label>
+                <Input
+                  value={formData.hashtags}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, hashtags: e.target.value }))}
+                  placeholder="#inmobiliaria #hogar"
+                />
               </div>
             </div>
           )}
 
           {step === 3 && (
             <div className="bg-card border border-border rounded-lg p-6 space-y-6">
-              <h3 className="text-lg font-semibold">Programacion, secuencia y repeticion</h3>
+              <h3 className="text-lg font-semibold">Programacion y repeticion</h3>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -334,88 +483,6 @@ export default function CreatePage() {
                 </div>
               </div>
 
-              <div className="border-t border-border pt-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">Publicacion en secuencia</h4>
-                  <select
-                    value={sequenceMode}
-                    onChange={(e) => setSequenceMode(e.target.value as SequenceMode)}
-                    className="bg-muted border border-border rounded-lg px-3 py-2 text-sm"
-                  >
-                    <option value="none">Sin secuencia</option>
-                    <option value="interval">Por intervalo</option>
-                    <option value="fixed-dates">Fechas fijas por elemento</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => applySequencePreset('seq-1')}
-                    className="text-xs px-3 py-1 bg-muted rounded border border-border"
-                  >
-                    Cargar preset 10 reels / 10 dias
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applySequencePreset('seq-2')}
-                    className="text-xs px-3 py-1 bg-muted rounded border border-border"
-                  >
-                    Cargar preset casa abierta
-                  </button>
-                </div>
-
-                {sequenceMode === 'interval' && (
-                  <div className="grid grid-cols-2 gap-3 max-w-sm">
-                    <Input
-                      type="number"
-                      min="1"
-                      value={sequenceIntervalValue}
-                      onChange={(e) => setSequenceIntervalValue(Number.parseInt(e.target.value, 10) || 1)}
-                    />
-                    <select
-                      value={sequenceIntervalUnit}
-                      onChange={(e) => setSequenceIntervalUnit(e.target.value as 'hours' | 'days')}
-                      className="bg-muted border border-border rounded-lg px-3 py-2"
-                    >
-                      <option value="hours">Horas</option>
-                      <option value="days">Dias</option>
-                    </select>
-                  </div>
-                )}
-
-                {sequenceMode !== 'none' && (
-                  <div className="space-y-2">
-                    {sequenceItems.map((item) => (
-                      <div key={item.id} className="grid grid-cols-12 gap-2 items-center text-sm">
-                        <div className="col-span-2 bg-muted rounded px-2 py-2">#{item.order}</div>
-                        <Input
-                          className="col-span-5"
-                          value={item.title}
-                          onChange={(e) =>
-                            setSequenceItems((prev) =>
-                              prev.map((entry) => (entry.id === item.id ? { ...entry, title: e.target.value } : entry)),
-                            )
-                          }
-                        />
-                        <Input
-                          className="col-span-5"
-                          type="datetime-local"
-                          value={item.scheduleAt}
-                          onChange={(e) =>
-                            setSequenceItems((prev) =>
-                              prev.map((entry) => (entry.id === item.id ? { ...entry, scheduleAt: e.target.value } : entry)),
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <p className="text-xs text-muted-foreground">{sequenceSummary}</p>
-              </div>
-
               <div className="border-t border-border pt-5">
                 <RecurrenceSettings value={recurrence} onChange={setRecurrence} />
               </div>
@@ -424,29 +491,22 @@ export default function CreatePage() {
 
           {step === 4 && (
             <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-              <h3 className="text-lg font-semibold">Estado y flujo</h3>
-              <p className="text-sm text-muted-foreground">Borrador, aprobacion, programado, publicando, publicado, fallido o cancelado.</p>
-
+              <h3 className="text-lg font-semibold">Estado inicial</h3>
               <div className="space-y-3">
-                {statuses.map((status) => (
+                {statusOptions.map((option) => (
                   <button
                     type="button"
-                    key={status}
-                    onClick={() => setFormData((prev) => ({ ...prev, status }))}
+                    key={option.value}
+                    onClick={() => setFormData((prev) => ({ ...prev, status: option.value }))}
                     className={`w-full p-3 rounded-lg border-2 transition-colors text-left ${
-                      formData.status === status ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
+                      formData.status === option.value ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <p className="font-semibold">{statusLabels[status] ?? status}</p>
-                      {formData.status === status && <Check size={16} className="text-primary" />}
+                      <p className="font-semibold">{option.label}</p>
+                      {formData.status === option.value && <Check size={16} className="text-primary" />}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {status === 'draft' && 'Guardar sin publicar'}
-                      {status === 'pending-approval' && 'Enviar a supervisor para aprobar o rechazar'}
-                      {status === 'approved' && 'Listo para pasar al programador'}
-                      {status === 'schedule' && 'Programar ejecucion automatica'}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{option.help}</p>
                   </button>
                 ))}
               </div>
@@ -454,18 +514,24 @@ export default function CreatePage() {
           )}
 
           <div className="flex gap-3 justify-between">
-            <Button variant="outline" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1}>
+            <Button variant="outline" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1 || submitting}>
               Anterior
             </Button>
             {step < 4 ? (
               <Button
                 onClick={() => setStep(step + 1)}
-                disabled={(step === 1 && (formData.platforms.length === 0 || !formData.contentType)) || (step === 2 && !formData.caption)}
+                disabled={
+                  submitting ||
+                  (step === 1 && !canGoStep2) ||
+                  (step === 2 && !canGoStep3)
+                }
               >
                 Siguiente
               </Button>
             ) : (
-              <Button>Guardar programacion</Button>
+              <Button onClick={handleSubmit} disabled={submitting || !canSubmit}>
+                {submitting ? 'Guardando...' : 'Guardar programacion'}
+              </Button>
             )}
           </div>
         </div>
@@ -474,34 +540,29 @@ export default function CreatePage() {
           <div className="bg-card border border-border rounded-lg p-6 sticky top-24 space-y-3">
             <h3 className="font-semibold">Resumen</h3>
             <p className="text-xs text-muted-foreground">Proyecto</p>
-            <p className="text-sm font-semibold">{formData.project || 'No definido'}</p>
+            <p className="text-sm font-semibold">{selectedProjectName}</p>
+
+            <p className="text-xs text-muted-foreground">Titulo</p>
+            <p className="text-sm font-semibold">{formData.title || 'No definido'}</p>
+
+            <p className="text-xs text-muted-foreground">Subtitulo</p>
+            <p className="text-sm font-semibold">{formData.subtitle || 'No definido'}</p>
 
             <p className="text-xs text-muted-foreground">Plataformas</p>
             <p className="text-sm font-semibold">{formData.platforms.length > 0 ? formData.platforms.join(', ') : 'Ninguna'}</p>
 
-            <p className="text-xs text-muted-foreground">Programacion base</p>
+            <p className="text-xs text-muted-foreground">Programacion</p>
             <p className="text-sm font-semibold">{formData.scheduledDate ? `${formData.scheduledDate} ${formData.scheduledTime}` : 'No definida'}</p>
 
-            <p className="text-xs text-muted-foreground">Secuencia</p>
-            <p className="text-sm font-semibold">{sequenceSummary}</p>
-
-            {recurrence.enabled && (
+            {recurrence.enabled ? (
               <>
                 <p className="text-xs text-muted-foreground">Repeticion</p>
-                <p className="text-sm font-semibold capitalize">
-                  {recurrence.type === 'hourly' && 'Cada hora'}
-                  {recurrence.type === 'daily' && 'Cada dia'}
-                  {recurrence.type === 'weekday' && 'Entre semana'}
-                  {recurrence.type === 'weekend' && 'Fines de semana'}
-                  {recurrence.type === 'weekly' && 'Cada semana'}
-                  {recurrence.type === 'custom' && `Cada ${recurrence.customInterval || 1} ${recurrence.customFrequency || 'dia'}`}
-                </p>
-                <p className="text-xs text-muted-foreground">Fin: {recurrence.endType === 'never' ? 'Nunca' : recurrence.endDate || 'Seleccionar fecha'}</p>
+                <p className="text-sm font-semibold capitalize">{recurrence.type || 'custom'}</p>
               </>
-            )}
+            ) : null}
 
-            <p className="text-xs text-muted-foreground">Regla IA</p>
-            <p className="text-sm font-semibold">{aiTone} / {aiObjective}</p>
+            <p className="text-xs text-muted-foreground">Estado</p>
+            <p className="text-sm font-semibold capitalize">{formData.status.replace('_', ' ')}</p>
           </div>
         </div>
       </div>
