@@ -24,7 +24,7 @@ import { useState } from 'react';
 const navItems = [
   { label: 'Panel', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Calendario', href: '/calendar', icon: Calendar },
-  { label: 'Publicaciones programadas', href: '/scheduled-posts', icon: FileText },
+  { label: 'Publicaciones programadas', href: '/publicaciones-programadas', icon: FileText },
   { label: 'Crear', href: '/create', icon: Plus },
   { label: 'Biblioteca', href: '/library', icon: Library },
   { label: 'Aprobaciones', href: '/approvals', icon: CheckCircle },

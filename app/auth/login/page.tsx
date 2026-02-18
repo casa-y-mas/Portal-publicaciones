@@ -49,7 +49,7 @@ export default function LoginPage() {
   }
 
   function loadDemoCredentials() {
-    setEmail('admin@inmosocial.com')
+    setEmail('maria@inmosocial.com')
     setPassword('Admin123!')
     setError('')
   }
@@ -158,7 +158,7 @@ export default function LoginPage() {
               <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                 <p className="inline-flex items-center gap-1.5">
                   <CheckCircle2 size={13} className="text-primary" />
-                  Correo: admin@inmosocial.com
+                  Correo: maria@inmosocial.com
                 </p>
                 <p className="inline-flex items-center gap-1.5">
                   <ShieldCheck size={13} className="text-primary" />

@@ -248,7 +248,7 @@ export default function CreatePage() {
 
       setSuccess('Publicacion programada creada correctamente.')
       setTimeout(() => {
-        router.push('/scheduled-posts')
+        router.push('/publicaciones-programadas')
         router.refresh()
       }, 700)
     } catch (submitError) {

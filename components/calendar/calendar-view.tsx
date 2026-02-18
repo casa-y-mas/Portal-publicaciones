@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, MoveRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { scheduledPosts } from '@/lib/mock-data'
-import { PostDetailModal } from '@/components/modals/post-detail-modal'
+import { PostDetailModal, type PostDetail } from '@/components/modals/post-detail-modal'
 import { getRecurrenceDates } from '@/lib/recurrence-utils'
 import type { CalendarFilterState, CalendarViewType } from '@/app/calendar/page'
 
@@ -26,8 +26,25 @@ const weekDays = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
 
 export function CalendarView({ view, filters }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedPost, setSelectedPost] = useState<(typeof scheduledPosts)[number] | null>(null)
+  const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null)
   const [postsState, setPostsState] = useState(scheduledPosts)
+
+  const toPostDetail = (post: (typeof scheduledPosts)[number]): PostDetail => ({
+    id: post.id,
+    title: post.title,
+    status: post.status,
+    thumbnail: post.thumbnail,
+    caption: [post.caption, post.hashtags].filter(Boolean).join('\n\n'),
+    platforms: post.platforms,
+    contentType: post.contentType,
+    project: post.project,
+    publishAt: post.publishAt.toISOString(),
+    creator: post.creator,
+    approver: post.approver,
+    sequenceGroupId: post.sequenceGroupId,
+    sequenceOrder: post.sequenceOrder,
+    recurrence: post.recurrence,
+  })
 
   const visiblePosts = useMemo(() => {
     return postsState.filter((post) => {
@@ -75,7 +92,7 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
     const firstPlatform = post.platforms[0] || 'Instagram'
     return (
       <div key={post.id} className={`p-2 rounded border text-xs ${platformColor[firstPlatform] || 'bg-muted border-border'}`}>
-        <button type="button" className="font-semibold text-left block w-full" onClick={() => setSelectedPost(post)}>
+        <button type="button" className="font-semibold text-left block w-full" onClick={() => setSelectedPost(toPostDetail(post))}>
           {post.title}
         </button>
         <p className="text-[11px] opacity-80 mt-1">{post.publishAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>

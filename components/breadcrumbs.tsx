@@ -8,6 +8,7 @@ const breadcrumbMap: Record<string, string> = {
   '/dashboard': 'Panel',
   '/calendar': 'Calendario',
   '/scheduled-posts': 'Publicaciones programadas',
+  '/publicaciones-programadas': 'Publicaciones programadas',
   '/create': 'Crear publicacion',
   '/library': 'Biblioteca multimedia',
   '/approvals': 'Aprobaciones',

@@ -249,7 +249,8 @@ export default function LibraryPage() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo crear el archivo multimedia.')
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudo crear el archivo multimedia.')
       }
 
       setCreateOpen(false)
@@ -287,7 +288,8 @@ export default function LibraryPage() {
       })
 
       if (!response.ok) {
-        throw new Error('No se pudo actualizar el archivo multimedia.')
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudo actualizar el archivo multimedia.')
       }
 
       setEditingMedia(null)

@@ -91,9 +91,7 @@ export function ScheduledPostsFilters({ filters, onFiltersChange }: ScheduledPos
           <SelectItem value="all">Todos</SelectItem>
           <SelectItem value="draft">Borrador</SelectItem>
           <SelectItem value="pending-approval">Pendiente</SelectItem>
-          <SelectItem value="approved">Aprobado</SelectItem>
           <SelectItem value="scheduled">Programado</SelectItem>
-          <SelectItem value="publishing">Publicando</SelectItem>
           <SelectItem value="published">Publicado</SelectItem>
           <SelectItem value="failed">Fallido</SelectItem>
           <SelectItem value="cancelled">Cancelado</SelectItem>
@@ -107,7 +105,7 @@ export function ScheduledPostsFilters({ filters, onFiltersChange }: ScheduledPos
         <SelectContent>
           <SelectItem value="all">Todos los proyectos</SelectItem>
           {projects.map((project) => (
-            <SelectItem key={project.id} value={project.name}>
+            <SelectItem key={project.id} value={project.id}>
               {project.name}
             </SelectItem>
           ))}

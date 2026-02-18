@@ -6,9 +6,14 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const mediaUrlSchema = z.string().trim().min(1).refine(
+  (value) => value.startsWith('/') || /^https?:\/\//i.test(value),
+  'URL invalida.',
+)
+
 const updateMediaSchema = z.object({
   fileName: z.string().min(2).optional(),
-  url: z.string().url().optional(),
+  url: mediaUrlSchema.optional(),
   mimeType: z.string().min(3).optional(),
   type: z.nativeEnum(MediaAssetType).optional(),
   sizeBytes: z.number().int().positive().optional(),

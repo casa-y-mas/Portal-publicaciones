@@ -6,9 +6,14 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const mediaUrlSchema = z.string().trim().min(1).refine(
+  (value) => value.startsWith('/') || /^https?:\/\//i.test(value),
+  'URL invalida.',
+)
+
 const createMediaSchema = z.object({
   fileName: z.string().min(2),
-  url: z.string().url(),
+  url: mediaUrlSchema,
   mimeType: z.string().min(3),
   type: z.nativeEnum(MediaAssetType),
   sizeBytes: z.number().int().positive(),
@@ -68,6 +73,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Project not found' }, { status: 404 })
   }
 
+  const uploader = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true },
+  })
+
   const created = await prisma.mediaAsset.create({
     data: {
       fileName: parsed.data.fileName,
@@ -77,7 +87,7 @@ export async function POST(request: Request) {
       sizeBytes: parsed.data.sizeBytes,
       projectId: parsed.data.projectId,
       tagsJson: parsed.data.tags,
-      uploadedById: session.user.id,
+      uploadedById: uploader?.id ?? null,
     },
     include: {
       project: { select: { id: true, name: true, color: true } },
