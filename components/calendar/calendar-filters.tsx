@@ -1,7 +1,8 @@
 ﻿'use client'
 
+import { useEffect, useMemo, useState } from 'react'
+
 import { Button } from '@/components/ui/button'
-import { users } from '@/lib/mock-data'
 import type { CalendarFilterState, CalendarViewType } from '@/app/calendar/page'
 import {
   Select,
@@ -18,7 +19,70 @@ interface CalendarFiltersProps {
   onFiltersChange: (filters: CalendarFilterState) => void
 }
 
+interface ProjectOption {
+  id: string
+  name: string
+}
+
+interface ScheduledPostCreator {
+  creator: string
+}
+
 export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }: CalendarFiltersProps) {
+  const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [creators, setCreators] = useState<string[]>([])
+
+  useEffect(() => {
+    let mounted = true
+
+    const loadFiltersData = async () => {
+      try {
+        const [projectsResponse, postsResponse] = await Promise.all([fetch('/api/projects'), fetch('/api/scheduled-posts')])
+
+        if (projectsResponse.ok) {
+          const projectsJson = await projectsResponse.json()
+          if (mounted) {
+            setProjects((projectsJson.items ?? []).map((project: { id: string; name: string }) => ({ id: project.id, name: project.name })))
+          }
+        }
+
+        if (postsResponse.ok) {
+          const postsJson = await postsResponse.json()
+          const uniqueCreators = Array.from(
+            new Set((postsJson.items ?? []).map((post: ScheduledPostCreator) => post.creator).filter(Boolean)),
+          ) as string[]
+          if (mounted) {
+            setCreators(uniqueCreators.sort((a, b) => a.localeCompare(b)))
+          }
+        }
+      } catch {
+        if (mounted) {
+          setProjects([])
+          setCreators([])
+        }
+      }
+    }
+
+    loadFiltersData()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const statusOptions = useMemo(
+    () => [
+      { value: 'all', label: 'Todos los estados' },
+      { value: 'draft', label: 'Borrador' },
+      { value: 'pending-approval', label: 'Pendiente' },
+      { value: 'scheduled', label: 'Programado' },
+      { value: 'published', label: 'Publicado' },
+      { value: 'failed', label: 'Fallido' },
+      { value: 'cancelled', label: 'Cancelado' },
+    ],
+    [],
+  )
+
   return (
     <div className="bg-card border border-border rounded-lg p-4 space-y-4">
       <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
@@ -55,15 +119,11 @@ export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="draft">Borrador</SelectItem>
-              <SelectItem value="pending-approval">Pendiente</SelectItem>
-              <SelectItem value="approved">Aprobado</SelectItem>
-              <SelectItem value="scheduled">Programado</SelectItem>
-              <SelectItem value="publishing">Publicando</SelectItem>
-              <SelectItem value="published">Publicado</SelectItem>
-              <SelectItem value="failed">Fallido</SelectItem>
-              <SelectItem value="cancelled">Cancelado</SelectItem>
+              {statusOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -73,10 +133,11 @@ export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los proyectos</SelectItem>
-              <SelectItem value="Residencial Aurora">Residencial Aurora</SelectItem>
-              <SelectItem value="Condominio Miraflores">Condominio Miraflores</SelectItem>
-              <SelectItem value="Torres del Sol">Torres del Sol</SelectItem>
-              <SelectItem value="Vista Horizonte">Vista Horizonte</SelectItem>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
 
@@ -86,14 +147,31 @@ export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los usuarios</SelectItem>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.name}>
-                  {user.name}
+              {creators.map((creator) => (
+                <SelectItem key={creator} value={creator}>
+                  {creator}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            onFiltersChange({
+              platform: 'all',
+              status: 'all',
+              project: 'all',
+              user: 'all',
+            })
+          }
+        >
+          Limpiar filtros
+        </Button>
       </div>
     </div>
   )

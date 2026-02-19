@@ -28,6 +28,7 @@ interface ScheduledPostItem extends PostDetail {
 }
 
 const columns = [
+  { key: 'select', label: '' },
   { key: 'title', label: 'Titulo' },
   { key: 'platforms', label: 'Red' },
   { key: 'project', label: 'Proyecto' },
@@ -50,6 +51,8 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
   const [editingPost, setEditingPost] = useState<ScheduledPostItem | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editForm, setEditForm] = useState({
     title: '',
     subtitle: '',
@@ -183,6 +186,74 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
     return true
   }), [posts, filters])
 
+  const allVisibleSelected = filteredPosts.length > 0 && filteredPosts.every((post) => selectedIds.includes(post.id))
+
+  const toggleRowSelection = (postId: string, checked: boolean) => {
+    setSelectedIds((prev) => (checked ? Array.from(new Set([...prev, postId])) : prev.filter((id) => id !== postId)))
+  }
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    if (!checked) {
+      const visibleSet = new Set(filteredPosts.map((post) => post.id))
+      setSelectedIds((prev) => prev.filter((id) => !visibleSet.has(id)))
+      return
+    }
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredPosts.map((post) => post.id)])))
+  }
+
+  const bulkDuplicate = async () => {
+    if (selectedIds.length === 0) return
+    setBulkLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const results = await Promise.allSettled(
+        selectedIds.map((id) => fetch(`/api/scheduled-posts/${id}/duplicate`, { method: 'POST' })),
+      )
+      const failed = results.filter((result) => result.status === 'rejected' || (result.status === 'fulfilled' && !result.value.ok)).length
+      if (failed > 0) {
+        throw new Error(`Se duplicaron ${selectedIds.length - failed} y fallaron ${failed}.`)
+      }
+      setSuccess(`${selectedIds.length} publicaciones duplicadas correctamente.`)
+      setSelectedIds([])
+      await loadPosts()
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : 'Error en duplicado masivo.')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const bulkCancel = async () => {
+    if (selectedIds.length === 0) return
+    if (!confirm(`Cancelar ${selectedIds.length} publicaciones seleccionadas?`)) return
+    setBulkLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const results = await Promise.allSettled(
+        selectedIds.map((id) =>
+          fetch(`/api/scheduled-posts/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'cancelled' }),
+          }),
+        ),
+      )
+      const failed = results.filter((result) => result.status === 'rejected' || (result.status === 'fulfilled' && !result.value.ok)).length
+      if (failed > 0) {
+        throw new Error(`Se cancelaron ${selectedIds.length - failed} y fallaron ${failed}.`)
+      }
+      setSuccess(`${selectedIds.length} publicaciones canceladas.`)
+      setSelectedIds([])
+      await loadPosts()
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : 'Error en cancelacion masiva.')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   return (
     <>
       {error ? (
@@ -196,6 +267,20 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
         </div>
       ) : null}
 
+      <div className="surface-muted p-3 mb-4 flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-muted-foreground">
+          Seleccionadas: <span className="font-semibold text-foreground">{selectedIds.length}</span>
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={bulkDuplicate} disabled={selectedIds.length === 0 || bulkLoading}>
+            Duplicar seleccionadas
+          </Button>
+          <Button variant="destructive" size="sm" onClick={bulkCancel} disabled={selectedIds.length === 0 || bulkLoading}>
+            Cancelar seleccionadas
+          </Button>
+        </div>
+      </div>
+
       <DataTableCard columns={columns} empty={filteredPosts.length === 0} emptyMessage="No hay publicaciones para estos filtros.">
         {loading ? (
           <TableRow>
@@ -207,6 +292,14 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
 
         {!loading && filteredPosts.map((post) => (
           <TableRow key={post.id} className="hover:bg-muted/30">
+            <TableCell className="w-8">
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(post.id)}
+                onChange={(event) => toggleRowSelection(post.id, event.target.checked)}
+                aria-label={`Seleccionar ${post.title}`}
+              />
+            </TableCell>
             <TableCell className="text-sm font-medium">{post.title}</TableCell>
             <TableCell>
               <div className="flex flex-wrap gap-1">
@@ -246,6 +339,21 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
             </TableCell>
           </TableRow>
         ))}
+        {!loading && filteredPosts.length > 0 ? (
+          <TableRow className="bg-muted/20">
+            <TableCell className="w-8">
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+                aria-label="Seleccionar todas las visibles"
+              />
+            </TableCell>
+            <TableCell colSpan={columns.length - 1} className="text-xs text-muted-foreground">
+              Seleccionar todas las publicaciones visibles en la tabla
+            </TableCell>
+          </TableRow>
+        ) : null}
       </DataTableCard>
 
       {selectedPost ? <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} /> : null}

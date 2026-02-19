@@ -1,11 +1,17 @@
 ﻿'use client'
 
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, MoveRight } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import FullCalendar from '@fullcalendar/react'
+import dayGridPlugin from '@fullcalendar/daygrid'
+import timeGridPlugin from '@fullcalendar/timegrid'
+import interactionPlugin from '@fullcalendar/interaction'
+import esLocale from '@fullcalendar/core/locales/es'
+import type { DatesSetArg, EventClickArg, EventDropArg, EventInput } from '@fullcalendar/core'
+import type { EventResizeDoneArg } from '@fullcalendar/interaction'
+
 import { Button } from '@/components/ui/button'
-import { scheduledPosts } from '@/lib/mock-data'
-import { PostDetailModal, type PostDetail } from '@/components/modals/post-detail-modal'
-import { getRecurrenceDates } from '@/lib/recurrence-utils'
+import { CalendarEventModal } from '@/components/calendar/calendar-event-modal'
+import type { PostDetail } from '@/components/modals/post-detail-modal'
 import type { CalendarFilterState, CalendarViewType } from '@/app/calendar/page'
 
 interface CalendarViewProps {
@@ -13,228 +19,245 @@ interface CalendarViewProps {
   filters: CalendarFilterState
 }
 
-const platformColor: Record<string, string> = {
-  Instagram: 'bg-pink-500/20 text-pink-700 dark:text-pink-200 border-pink-500/40',
-  Facebook: 'bg-blue-500/20 text-blue-700 dark:text-blue-200 border-blue-500/40',
-  TikTok: 'bg-neutral-500/20 text-neutral-800 dark:text-neutral-100 border-neutral-500/40',
-  'YouTube Shorts': 'bg-red-500/20 text-red-700 dark:text-red-200 border-red-500/40',
-  X: 'bg-gray-500/20 text-gray-700 dark:text-gray-200 border-gray-500/40',
-  LinkedIn: 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-200 border-cyan-500/40',
+interface CalendarPostItem extends PostDetail {
+  projectId?: string
 }
 
-const weekDays = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab']
+const viewMap: Record<CalendarViewType, 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'> = {
+  month: 'dayGridMonth',
+  week: 'timeGridWeek',
+  day: 'timeGridDay',
+}
+
+const platformColor: Record<string, string> = {
+  instagram: '#d946ef',
+  facebook: '#3b82f6',
+  tiktok: '#1f2937',
+  'youtube shorts': '#ef4444',
+  x: '#6b7280',
+  linkedin: '#0ea5e9',
+}
+
+const statusAccent: Record<string, string> = {
+  draft: '#64748b',
+  'pending-approval': '#f59e0b',
+  scheduled: '#0ea5e9',
+  published: '#22c55e',
+  failed: '#ef4444',
+  cancelled: '#6b7280',
+}
+
+const normalize = (value: string) => value.trim().toLowerCase().replace(/_/g, '-')
 
 export function CalendarView({ view, filters }: CalendarViewProps) {
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null)
-  const [postsState, setPostsState] = useState(scheduledPosts)
+  const calendarRef = useRef<FullCalendar | null>(null)
+  const [posts, setPosts] = useState<CalendarPostItem[]>([])
+  const [range, setRange] = useState<{ start: string; end: string } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+  const [selectedPost, setSelectedPost] = useState<CalendarPostItem | null>(null)
 
-  const toPostDetail = (post: (typeof scheduledPosts)[number]): PostDetail => ({
-    id: post.id,
-    title: post.title,
-    status: post.status,
-    thumbnail: post.thumbnail,
-    caption: [post.caption, post.hashtags].filter(Boolean).join('\n\n'),
-    platforms: post.platforms,
-    contentType: post.contentType,
-    project: post.project,
-    publishAt: post.publishAt.toISOString(),
-    creator: post.creator,
-    approver: post.approver,
-    sequenceGroupId: post.sequenceGroupId,
-    sequenceOrder: post.sequenceOrder,
-    recurrence: post.recurrence,
-  })
+  const loadPosts = useCallback(async () => {
+    if (!range) return
+    setLoading(true)
+    setError(null)
+    try {
+      const params = new URLSearchParams({
+        start: range.start,
+        end: range.end,
+        platform: filters.platform,
+        status: filters.status,
+        project: filters.project,
+        user: filters.user,
+      })
 
-  const visiblePosts = useMemo(() => {
-    return postsState.filter((post) => {
-      if (filters.platform !== 'all' && !post.platforms.some((p) => p.toLowerCase().includes(filters.platform))) {
-        return false
+      const response = await fetch(`/api/calendar/events?${params.toString()}`)
+      if (!response.ok) throw new Error('No se pudo cargar el calendario.')
+      const json = await response.json()
+      setPosts(json.items ?? [])
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Error cargando calendario.')
+    } finally {
+      setLoading(false)
+    }
+  }, [range, filters.platform, filters.status, filters.project, filters.user])
+
+  useEffect(() => {
+    loadPosts()
+  }, [loadPosts])
+
+  useEffect(() => {
+    const api = calendarRef.current?.getApi()
+    if (!api) return
+    api.changeView(viewMap[view])
+  }, [view])
+
+  const eventMap = useMemo(() => {
+    const map = new Map<string, CalendarPostItem>()
+    for (const post of posts) {
+      map.set(post.id, post)
+    }
+    return map
+  }, [posts])
+
+  const events = useMemo<EventInput[]>(() => {
+    return posts.map((post) => {
+      const firstPlatform = normalize(post.platforms[0] ?? '')
+      const normalizedStatus = normalize(post.status)
+      const backgroundColor = platformColor[firstPlatform] ?? 'hsl(var(--primary))'
+      const borderColor = statusAccent[normalizedStatus] ?? backgroundColor
+
+      return {
+        id: post.id,
+        title: post.title,
+        start: post.publishAt,
+        allDay: false,
+        backgroundColor,
+        borderColor,
+        textColor: '#ffffff',
+        extendedProps: {
+          status: post.status,
+          project: post.project,
+          platforms: post.platforms,
+        },
       }
-      if (filters.status !== 'all' && post.status !== filters.status) {
-        return false
-      }
-      if (filters.project !== 'all' && post.project !== filters.project) {
-        return false
-      }
-      if (filters.user !== 'all' && post.creator !== filters.user) {
-        return false
-      }
-      return true
     })
-  }, [filters.platform, filters.project, filters.status, filters.user, postsState])
+  }, [posts])
 
-  const monthLabel = currentDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
-
-  const getPostsForDate = (day: Date) => {
-    const matched: typeof scheduledPosts = []
-    visiblePosts.forEach((post) => {
-      const base = new Date(post.publishAt)
-      if (post.recurrence?.enabled) {
-        const list = getRecurrenceDates(base, post.recurrence, 90)
-        if (list.some((date) => date.toDateString() === day.toDateString())) {
-          matched.push(post)
-        }
-      } else if (base.toDateString() === day.toDateString()) {
-        matched.push(post)
-      }
+  const handleDatesSet = (arg: DatesSetArg) => {
+    setRange({
+      start: arg.start.toISOString(),
+      end: arg.end.toISOString(),
     })
-    return matched
   }
 
-  const shiftPostOneHour = (postId: string) => {
-    setPostsState((prev) =>
-      prev.map((post) => (post.id === postId ? { ...post, publishAt: new Date(post.publishAt.getTime() + 60 * 60 * 1000) } : post)),
-    )
-  }
-
-  const renderEvent = (post: (typeof scheduledPosts)[number]) => {
-    const firstPlatform = post.platforms[0] || 'Instagram'
-    return (
-      <div key={post.id} className={`p-2 rounded border text-xs ${platformColor[firstPlatform] || 'bg-muted border-border'}`}>
-        <button type="button" className="font-semibold text-left block w-full" onClick={() => setSelectedPost(toPostDetail(post))}>
-          {post.title}
-        </button>
-        <p className="text-[11px] opacity-80 mt-1">{post.publishAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-      </div>
-    )
-  }
-
-  const renderMonth = () => {
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const firstDay = new Date(year, month, 1).getDay()
-
-    const cells: Array<Date | null> = []
-    for (let i = 0; i < firstDay; i += 1) cells.push(null)
-    for (let day = 1; day <= daysInMonth; day += 1) cells.push(new Date(year, month, day))
-
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-7 gap-2">
-          {weekDays.map((day) => (
-            <div key={day} className="text-center text-sm font-semibold text-muted-foreground py-2">
-              {day}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-2">
-          {cells.map((day, index) => (
-            <div key={`${day?.toISOString() || 'blank'}-${index}`} className={`min-h-28 rounded-lg border p-2 ${day ? 'border-border' : 'border-transparent bg-muted/20'}`}>
-              {day && (
-                <>
-                  <p className="text-sm font-semibold mb-2">{day.getDate()}</p>
-                  <div className="space-y-1">{getPostsForDate(day).slice(0, 3).map(renderEvent)}</div>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  const renderWeek = () => {
-    const start = new Date(currentDate)
-    start.setDate(start.getDate() - start.getDay())
-    const days = Array.from({ length: 7 }, (_, idx) => {
-      const day = new Date(start)
-      day.setDate(start.getDate() + idx)
-      return day
+  const updatePublishAt = async (postId: string, publishAt: string) => {
+    const response = await fetch(`/api/scheduled-posts/${postId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publishAt }),
     })
 
-    return (
-      <div className="grid md:grid-cols-7 gap-3">
-        {days.map((day) => (
-          <div key={day.toISOString()} className="border border-border rounded-lg p-3 space-y-2">
-            <p className="text-sm font-semibold">{weekDays[day.getDay()]} {day.getDate()}</p>
-            <div className="space-y-1">{getPostsForDate(day).map(renderEvent)}</div>
-          </div>
-        ))}
-      </div>
-    )
+    if (!response.ok) {
+      const json = await response.json().catch(() => null)
+      throw new Error(json?.message ?? 'No se pudo reprogramar la publicacion.')
+    }
+
+    const json = await response.json()
+    const updated = json.item as CalendarPostItem
+    setPosts((prev) => prev.map((post) => (post.id === updated.id ? updated : post)))
+    setInfo('Publicacion reprogramada correctamente.')
   }
 
-  const renderDay = () => {
-    const slots = Array.from({ length: 12 }, (_, i) => i + 8)
-    const postsToday = getPostsForDate(currentDate)
+  const handleEventDrop = async (infoArg: EventDropArg) => {
+    const newStart = infoArg.event.start
+    if (!newStart) {
+      infoArg.revert()
+      return
+    }
 
-    return (
-      <div className="border border-border rounded-lg p-4 space-y-3">
-        {slots.map((hour) => {
-          const slotPosts = postsToday.filter((post) => post.publishAt.getHours() === hour)
-          return (
-            <div key={hour} className="grid grid-cols-12 gap-3 items-start border-b border-border pb-3">
-              <p className="col-span-2 text-xs text-muted-foreground">{`${hour.toString().padStart(2, '0')}:00`}</p>
-              <div className="col-span-10 space-y-2">
-                {slotPosts.length === 0 && <p className="text-xs text-muted-foreground">Sin publicaciones</p>}
-                {slotPosts.map((post) => (
-                  <div key={post.id} className="flex items-center justify-between gap-2">
-                    {renderEvent(post)}
-                    <Button variant="outline" size="sm" onClick={() => shiftPostOneHour(post.id)}>
-                      <MoveRight size={14} className="mr-2" />
-                      Reprogramar +1h
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    )
+    try {
+      await updatePublishAt(infoArg.event.id, newStart.toISOString())
+    } catch (dropError) {
+      infoArg.revert()
+      setError(dropError instanceof Error ? dropError.message : 'Error reprogramando publicacion.')
+    }
+  }
+
+  const handleEventResize = async (infoArg: EventResizeDoneArg) => {
+    const newStart = infoArg.event.start
+    if (!newStart) {
+      infoArg.revert()
+      return
+    }
+
+    try {
+      await updatePublishAt(infoArg.event.id, newStart.toISOString())
+    } catch (resizeError) {
+      infoArg.revert()
+      setError(resizeError instanceof Error ? resizeError.message : 'Error actualizando hora.')
+    }
+  }
+
+  const handleEventClick = (click: EventClickArg) => {
+    const post = eventMap.get(click.event.id)
+    if (!post) return
+    setSelectedPost(post)
   }
 
   return (
     <>
-      <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-bold capitalize">{monthLabel}</h2>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setCurrentDate((prev) =>
-                  view === 'day'
-                    ? new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1)
-                    : new Date(prev.getFullYear(), prev.getMonth() - 1, prev.getDate()),
-                )
-              }
-            >
-              <ChevronLeft size={16} />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setCurrentDate((prev) =>
-                  view === 'day'
-                    ? new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1)
-                    : new Date(prev.getFullYear(), prev.getMonth() + 1, prev.getDate()),
-                )
-              }
-            >
-              <ChevronRight size={16} />
-            </Button>
+      {error ? (
+        <div className="surface-muted p-3 mb-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      ) : null}
+      {info ? (
+        <div className="surface-muted p-3 mb-4 border-primary/30">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-primary">{info}</p>
+            <Button variant="ghost" size="sm" onClick={() => setInfo(null)}>Cerrar</Button>
           </div>
         </div>
+      ) : null}
 
-        <div className="flex flex-wrap gap-2 text-xs">
-          {Object.entries(platformColor).map(([platform, style]) => (
-            <span key={platform} className={`px-2 py-1 rounded border ${style}`}>
-              {platform}
-            </span>
-          ))}
-        </div>
-
-        {view === 'month' && renderMonth()}
-        {view === 'week' && renderWeek()}
-        {view === 'day' && renderDay()}
+      <div className="surface-card p-4 md:p-6">
+        {loading ? (
+          <div className="py-16 text-center text-muted-foreground">Cargando calendario...</div>
+        ) : (
+          <div className="calendar-pro">
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView={viewMap[view]}
+              locale={esLocale}
+              events={events}
+              editable
+              eventDurationEditable
+              eventStartEditable
+              eventDrop={handleEventDrop}
+              eventResize={handleEventResize}
+              eventClick={handleEventClick}
+              datesSet={handleDatesSet}
+              dayMaxEvents={4}
+              allDaySlot={false}
+              nowIndicator
+              slotMinTime="06:00:00"
+              slotMaxTime="23:00:00"
+              height="auto"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay',
+              }}
+              buttonText={{
+                today: 'Hoy',
+                month: 'Mes',
+                week: 'Semana',
+                day: 'Dia',
+              }}
+              eventContent={(eventInfo) => (
+                <div className="fc-event-rich">
+                  <p className="fc-event-title">{eventInfo.event.title}</p>
+                  <p className="fc-event-meta">{(eventInfo.event.extendedProps.platforms as string[] | undefined)?.join(' • ')}</p>
+                </div>
+              )}
+            />
+          </div>
+        )}
       </div>
 
-      {selectedPost && <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} />}
+      {selectedPost ? (
+        <CalendarEventModal
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          onUpdated={async () => {
+            await loadPosts()
+            setInfo('Calendario actualizado con cambios del evento.')
+          }}
+        />
+      ) : null}
     </>
   )
 }

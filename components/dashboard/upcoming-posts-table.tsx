@@ -6,13 +6,32 @@ import { Eye, Edit2, Copy } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { StatusBadge } from '@/components/base/status-badge'
 import { PostDetailModal, type PostDetail } from '@/components/modals/post-detail-modal'
+import type { DashboardUpcomingPost } from '@/lib/dashboard-data'
 
 interface UpcomingPostsTableProps {
-  posts: PostDetail[]
+  posts: DashboardUpcomingPost[]
 }
 
 export function UpcomingPostsTable({ posts }: UpcomingPostsTableProps) {
   const [selectedPost, setSelectedPost] = useState<PostDetail | null>(null)
+
+  const openPostDetail = (post: DashboardUpcomingPost) => {
+    setSelectedPost({
+      id: post.id,
+      title: post.title,
+      subtitle: null,
+      status: post.status,
+      thumbnail: post.thumbnail,
+      caption: post.caption,
+      platforms: post.platforms,
+      contentType: post.contentType,
+      project: post.project,
+      publishAt: post.publishAt,
+      creator: post.creator,
+      approver: post.approver,
+      recurrence: post.recurrence,
+    })
+  }
 
   return (
     <>
@@ -33,6 +52,7 @@ export function UpcomingPostsTable({ posts }: UpcomingPostsTableProps) {
                 <tr className="border-b border-border bg-muted/30">
                   <th className="px-6 py-3 text-left text-sm font-semibold text-muted-foreground">Titulo</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-muted-foreground">Plataformas</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-muted-foreground">Prioridad IA</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-muted-foreground">Fecha</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-muted-foreground">Estado</th>
                   <th className="px-6 py-3 text-left text-sm font-semibold text-muted-foreground">Acciones</th>
@@ -58,6 +78,21 @@ export function UpcomingPostsTable({ posts }: UpcomingPostsTableProps) {
                           ))}
                         </div>
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold">{post.aiScore}/100</p>
+                          <span className={`text-[11px] px-2 py-0.5 rounded-full ${
+                            post.aiPriority === 'Alta'
+                              ? 'bg-green-500/15 text-green-700 dark:text-green-300'
+                              : post.aiPriority === 'Media'
+                                ? 'bg-orange-500/15 text-orange-700 dark:text-orange-300'
+                                : 'bg-neutral-500/15 text-neutral-700 dark:text-neutral-300'
+                          }`}>
+                            {post.aiPriority}
+                          </span>
+                          <p className="text-[11px] text-muted-foreground">Ventana: {post.suggestedWindow}</p>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">
                         {publishDate.toLocaleDateString()}{' '}
                         {publishDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -67,7 +102,7 @@ export function UpcomingPostsTable({ posts }: UpcomingPostsTableProps) {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => setSelectedPost(post)} className="h-8 w-8 p-0">
+                          <Button variant="ghost" size="sm" onClick={() => openPostDetail(post)} className="h-8 w-8 p-0">
                             <Eye size={16} />
                           </Button>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0" disabled>
