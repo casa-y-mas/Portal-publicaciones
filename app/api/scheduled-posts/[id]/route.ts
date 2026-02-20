@@ -81,6 +81,7 @@ function serializePost(item: {
   publishAt: Date
   status: PostStatus
   projectId: string
+  mediaAssetId: string | null
   thumbnail: string | null
   recurrenceJson: Prisma.JsonValue | null
   platformsJson: Prisma.JsonValue
@@ -101,6 +102,7 @@ function serializePost(item: {
     approver: item.approver?.name ?? null,
     project: item.project.name,
     projectId: item.projectId,
+    mediaAssetId: item.mediaAssetId,
     thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
     recurrence: parseRecurrence(item.recurrenceJson),
   }
@@ -133,7 +135,37 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ message: 'Publicacion no encontrada.' }, { status: 404 })
   }
 
+  if (parsed.data.publishAt) {
+    const nextPublishAt = new Date(parsed.data.publishAt)
+    if (Number.isNaN(nextPublishAt.getTime())) {
+      return NextResponse.json({ message: 'Fecha/hora invalida.' }, { status: 400 })
+    }
+    if (nextPublishAt.getTime() < Date.now()) {
+      return NextResponse.json({ message: 'No puedes programar en una fecha pasada.' }, { status: 400 })
+    }
+    if (existing.status === PostStatus.published || existing.status === PostStatus.cancelled) {
+      return NextResponse.json({ message: 'Este estado no permite reprogramacion por arrastre.' }, { status: 400 })
+    }
+  }
+
   const current = parseStoredCaption(existing.caption)
+  const nextStatus = parsed.data.status ?? existing.status
+  const nextPublishAt = parsed.data.publishAt ? new Date(parsed.data.publishAt) : existing.publishAt
+  const nextPlatforms = parsePlatforms(existing.platformsJson)
+  const nextMediaAssetId = existing.mediaAssetId
+
+  if (nextStatus === PostStatus.scheduled) {
+    if (nextPublishAt.getTime() < Date.now()) {
+      return NextResponse.json({ message: 'No puedes programar en una fecha pasada.' }, { status: 400 })
+    }
+    if (!nextMediaAssetId) {
+      return NextResponse.json({ message: 'Para programar debes asociar un archivo multimedia.' }, { status: 400 })
+    }
+    if (nextPlatforms.length === 0) {
+      return NextResponse.json({ message: 'Para programar debes seleccionar al menos una red.' }, { status: 400 })
+    }
+  }
+
   const nextSubtitle = parsed.data.subtitle !== undefined ? parsed.data.subtitle : current.subtitle ?? ''
   const nextCaption = parsed.data.caption !== undefined ? parsed.data.caption : current.caption
 

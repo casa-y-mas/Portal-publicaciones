@@ -118,6 +118,7 @@ export async function GET(request: Request) {
       approver: item.approver?.name ?? null,
       project: item.project.name,
       projectId: item.projectId,
+      mediaAssetId: item.mediaAssetId,
       thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
       recurrence: parseRecurrence(item.recurrenceJson),
     })),

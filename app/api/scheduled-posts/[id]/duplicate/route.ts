@@ -64,6 +64,7 @@ function serializePost(item: {
   publishAt: Date
   status: string
   projectId: string
+  mediaAssetId: string | null
   thumbnail: string | null
   recurrenceJson: Prisma.JsonValue | null
   platformsJson: Prisma.JsonValue
@@ -84,6 +85,7 @@ function serializePost(item: {
     approver: item.approver?.name ?? null,
     project: item.project.name,
     projectId: item.projectId,
+    mediaAssetId: item.mediaAssetId,
     thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
     recurrence: parseRecurrence(item.recurrenceJson),
   }

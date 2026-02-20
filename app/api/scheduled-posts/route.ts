@@ -101,6 +101,7 @@ export async function GET() {
       approver: item.approver?.name ?? null,
       project: item.project.name,
       projectId: item.projectId,
+      mediaAssetId: item.mediaAssetId,
       thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
       recurrence: parseRecurrence(item.recurrenceJson),
     })),
@@ -128,6 +129,24 @@ export async function POST(request: Request) {
   }
 
   const mediaAssetId = parsed.data.mediaAssetId || null
+  const publishAt = new Date(parsed.data.publishAt)
+
+  if (Number.isNaN(publishAt.getTime())) {
+    return NextResponse.json({ message: 'Fecha/hora invalida.' }, { status: 400 })
+  }
+
+  if (parsed.data.status === PostStatus.scheduled) {
+    if (publishAt.getTime() < Date.now()) {
+      return NextResponse.json({ message: 'No puedes programar en una fecha pasada.' }, { status: 400 })
+    }
+    if (!mediaAssetId) {
+      return NextResponse.json({ message: 'Para programar debes asociar un archivo multimedia.' }, { status: 400 })
+    }
+    if (parsed.data.platforms.length === 0) {
+      return NextResponse.json({ message: 'Para programar debes seleccionar al menos una red.' }, { status: 400 })
+    }
+  }
+
   if (mediaAssetId) {
     const media = await prisma.mediaAsset.findUnique({
       where: { id: mediaAssetId },
@@ -147,7 +166,7 @@ export async function POST(request: Request) {
       caption: composeCaption(parsed.data.caption, parsed.data.subtitle),
       contentType: parsed.data.contentType,
       status: parsed.data.status,
-      publishAt: new Date(parsed.data.publishAt),
+      publishAt,
       projectId: parsed.data.projectId,
       creatorId: session.user.id,
       mediaAssetId,
@@ -187,6 +206,7 @@ export async function POST(request: Request) {
         approver: createdWithRelations.approver?.name ?? null,
         project: createdWithRelations.project.name,
         projectId: createdWithRelations.projectId,
+        mediaAssetId: createdWithRelations.mediaAssetId,
         thumbnail: createdWithRelations.thumbnail ?? createdWithRelations.mediaAsset?.fileName ?? null,
         recurrence: parseRecurrence(createdWithRelations.recurrenceJson),
       },

@@ -17,6 +17,7 @@ export interface PostDetail {
   platforms: string[]
   contentType: string
   project: string
+  mediaAssetId?: string | null
   publishAt: string
   creator: string
   approver: string | null

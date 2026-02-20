@@ -56,6 +56,17 @@ export function CalendarEventModal({ post, onClose, onUpdated }: CalendarEventMo
     try {
       const publishAt = new Date(`${form.date}T${form.time}`)
       if (Number.isNaN(publishAt.getTime())) throw new Error('Fecha/hora invalida.')
+      if (form.status === 'scheduled') {
+        if (publishAt.getTime() < Date.now()) {
+          throw new Error('No puedes programar en una fecha pasada.')
+        }
+        if (!post.mediaAssetId) {
+          throw new Error('Para programar debes asociar un archivo multimedia.')
+        }
+        if (!post.platforms || post.platforms.length === 0) {
+          throw new Error('Para programar debes seleccionar al menos una red.')
+        }
+      }
       await persistUpdate({ publishAt: publishAt.toISOString(), status: form.status })
       setSuccess('Cambios guardados.')
       await onUpdated()

@@ -48,6 +48,7 @@ const statusAccent: Record<string, string> = {
 }
 
 const normalize = (value: string) => value.trim().toLowerCase().replace(/_/g, '-')
+const isLockedStatus = (status: string) => ['published', 'cancelled'].includes(normalize(status))
 
 export function CalendarView({ view, filters }: CalendarViewProps) {
   const calendarRef = useRef<FullCalendar | null>(null)
@@ -113,6 +114,7 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
         title: post.title,
         start: post.publishAt,
         allDay: false,
+        editable: !isLockedStatus(post.status),
         backgroundColor,
         borderColor,
         textColor: '#ffffff',
@@ -186,6 +188,15 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
     setSelectedPost(post)
   }
 
+  const allowDrag = (
+    dropInfo: { start: Date },
+    draggedEvent: { extendedProps?: { status?: string } } | null,
+  ) => {
+    const status = draggedEvent?.extendedProps?.status ?? ''
+    if (isLockedStatus(status)) return false
+    return dropInfo.start.getTime() >= Date.now()
+  }
+
   return (
     <>
       {error ? (
@@ -214,8 +225,9 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
               locale={esLocale}
               events={events}
               editable
-              eventDurationEditable
+              eventDurationEditable={false}
               eventStartEditable
+              eventAllow={allowDrag}
               eventDrop={handleEventDrop}
               eventResize={handleEventResize}
               eventClick={handleEventClick}

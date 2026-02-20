@@ -221,6 +221,17 @@ export default function CreatePage() {
       if (Number.isNaN(publishAt.getTime())) {
         throw new Error('Fecha/hora invalida para programacion.')
       }
+      if (formData.status === 'scheduled') {
+        if (publishAt.getTime() < Date.now()) {
+          throw new Error('No puedes programar en una fecha pasada.')
+        }
+        if (!formData.mediaAssetId) {
+          throw new Error('Para programar debes seleccionar un archivo multimedia.')
+        }
+        if (formData.platforms.length === 0) {
+          throw new Error('Para programar debes seleccionar al menos una red.')
+        }
+      }
 
       const captionWithHashtags = [formData.caption.trim(), formData.hashtags.trim()].filter(Boolean).join('\n\n')
 
