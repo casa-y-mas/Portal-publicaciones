@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Copy, Download, Edit2, Play, Search, Trash2, UploadCloud } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 
@@ -103,7 +103,7 @@ function MediaPreview({
   return <img src={url} alt="Vista previa" className={`w-full h-full object-cover ${className || ''}`} onError={() => setFailed(true)} />
 }
 
-export default function LibraryPage() {
+function LibraryPageContent() {
   const searchParams = useSearchParams()
   const [items, setItems] = useState<MediaItem[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
@@ -633,5 +633,13 @@ export default function LibraryPage() {
         ) : null}
       </AppModal>
     </div>
+  )
+}
+
+export default function LibraryPage() {
+  return (
+    <Suspense fallback={<div className="surface-card p-12 text-center text-muted-foreground">Cargando biblioteca multimedia...</div>}>
+      <LibraryPageContent />
+    </Suspense>
   )
 }

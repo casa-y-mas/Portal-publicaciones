@@ -168,6 +168,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const nextSubtitle = parsed.data.subtitle !== undefined ? parsed.data.subtitle : current.subtitle ?? ''
   const nextCaption = parsed.data.caption !== undefined ? parsed.data.caption : current.caption
+  const shouldStampApprover =
+    parsed.data.status !== undefined &&
+    existing.status === PostStatus.pending_approval &&
+    parsed.data.status !== PostStatus.pending_approval
 
   const updated = await prisma.scheduledPost.update({
     where: { id },
@@ -175,6 +179,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       title: parsed.data.title,
       contentType: parsed.data.contentType,
       status: parsed.data.status,
+      approverId: shouldStampApprover ? session.user.id : undefined,
       publishAt: parsed.data.publishAt ? new Date(parsed.data.publishAt) : undefined,
       thumbnail: parsed.data.thumbnail !== undefined ? parsed.data.thumbnail || null : undefined,
       caption: composeCaption(nextCaption, nextSubtitle),

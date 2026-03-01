@@ -2,6 +2,8 @@ import { PostStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 
+const SUBTITLE_MARKER = '[SUBTITULO]'
+
 type RecurrenceInfo = {
   enabled: boolean
   type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
@@ -82,6 +84,36 @@ export interface ProjectOptimizationRecommendation {
   rationale: string
 }
 
+export interface ApprovalQueueItem {
+  id: string
+  title: string
+  caption: string
+  subtitle: string | null
+  creator: string
+  project: string
+  platforms: string[]
+  proposedDate: string
+  submittedAt: string
+  status: 'pending' | 'resolved'
+}
+
+export interface ApprovalHistoryItem {
+  id: string
+  title: string
+  project: string
+  reviewedAt: string
+  reviewer: string
+  finalStatus: string
+}
+
+export interface ReportSummaryData {
+  weekPosts: number
+  monthPosts: number
+  failureRate: number
+  byNetwork: Array<{ network: string; total: number }>
+  byProject: Array<{ project: string; total: number }>
+}
+
 function toStartOfDay(date: Date): Date {
   const value = new Date(date)
   value.setHours(0, 0, 0, 0)
@@ -115,6 +147,23 @@ function parseRecurrence(value: Prisma.JsonValue | null): RecurrenceInfo | undef
         : undefined,
     customInterval: typeof candidate.customInterval === 'number' ? candidate.customInterval : undefined,
   }
+}
+
+function parseStoredCaption(rawCaption: string): { subtitle: string | null; caption: string } {
+  if (!rawCaption.startsWith(SUBTITLE_MARKER)) {
+    return { subtitle: null, caption: rawCaption }
+  }
+
+  const firstBreak = rawCaption.indexOf('\n')
+  if (firstBreak === -1) {
+    const subtitleOnly = rawCaption.slice(SUBTITLE_MARKER.length).trim()
+    return { subtitle: subtitleOnly || null, caption: '' }
+  }
+
+  const header = rawCaption.slice(0, firstBreak).trim()
+  const subtitle = header.slice(SUBTITLE_MARKER.length).trim()
+  const caption = rawCaption.slice(firstBreak).trim()
+  return { subtitle: subtitle || null, caption }
 }
 
 export async function getDashboardStats(): Promise<DashboardStatsData> {
@@ -496,4 +545,121 @@ export async function getProjectOptimizationRecommendations(limit = 5): Promise<
       return b.successRate - a.successRate
     })
     .slice(0, limit)
+}
+
+export async function getApprovalBoardData(): Promise<{ pending: ApprovalQueueItem[]; recent: ApprovalHistoryItem[] }> {
+  const [pendingPosts, reviewedPosts] = await Promise.all([
+    prisma.scheduledPost.findMany({
+      where: { status: PostStatus.pending_approval },
+      orderBy: { publishAt: 'asc' },
+      include: {
+        creator: { select: { name: true } },
+        project: { select: { name: true } },
+      },
+      take: 50,
+    }),
+    prisma.scheduledPost.findMany({
+      where: {
+        approverId: { not: null },
+        status: { not: PostStatus.pending_approval },
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        approver: { select: { name: true } },
+        project: { select: { name: true } },
+      },
+      take: 10,
+    }),
+  ])
+
+  return {
+    pending: pendingPosts.map((post) => {
+      const parsedCaption = parseStoredCaption(post.caption)
+      return {
+        id: post.id,
+        title: post.title,
+        caption: parsedCaption.caption,
+        subtitle: parsedCaption.subtitle,
+        creator: post.creator.name,
+        project: post.project.name,
+        platforms: parsePlatforms(post.platformsJson),
+        proposedDate: post.publishAt.toISOString(),
+        submittedAt: post.createdAt.toISOString(),
+        status: 'pending',
+      }
+    }),
+    recent: reviewedPosts.map((post) => ({
+      id: post.id,
+      title: post.title,
+      project: post.project.name,
+      reviewedAt: post.updatedAt.toISOString(),
+      reviewer: post.approver?.name ?? 'Sin responsable',
+      finalStatus: post.status,
+    })),
+  }
+}
+
+export async function getReportSummary(): Promise<ReportSummaryData> {
+  const now = new Date()
+  const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+
+  const posts = await prisma.scheduledPost.findMany({
+    where: {
+      publishAt: { gte: last30d, lte: now },
+      status: { not: PostStatus.draft },
+    },
+    select: {
+      status: true,
+      publishAt: true,
+      platformsJson: true,
+      project: { select: { name: true } },
+    },
+    take: 1500,
+    orderBy: { publishAt: 'desc' },
+  })
+
+  const byNetworkMap = new Map<string, number>()
+  const byProjectMap = new Map<string, number>()
+  let weekPosts = 0
+  let monthPosts = 0
+  let processedCount = 0
+  let failedCount = 0
+
+  for (const post of posts) {
+    monthPosts += 1
+    if (post.publishAt >= last7d) {
+      weekPosts += 1
+    }
+
+    const processedStatuses: PostStatus[] = [
+      PostStatus.scheduled,
+      PostStatus.published,
+      PostStatus.failed,
+      PostStatus.cancelled,
+    ]
+    if (processedStatuses.includes(post.status)) {
+      processedCount += 1
+      if (post.status === PostStatus.failed) {
+        failedCount += 1
+      }
+    }
+
+    for (const platform of parsePlatforms(post.platformsJson)) {
+      byNetworkMap.set(platform, (byNetworkMap.get(platform) ?? 0) + 1)
+    }
+    byProjectMap.set(post.project.name, (byProjectMap.get(post.project.name) ?? 0) + 1)
+  }
+
+  return {
+    weekPosts,
+    monthPosts,
+    failureRate: processedCount === 0 ? 0 : Number(((failedCount / processedCount) * 100).toFixed(1)),
+    byNetwork: Array.from(byNetworkMap.entries())
+      .map(([network, total]) => ({ network, total }))
+      .sort((a, b) => b.total - a.total),
+    byProject: Array.from(byProjectMap.entries())
+      .map(([project, total]) => ({ project, total }))
+      .sort((a, b) => b.total - a.total),
+  }
 }

@@ -3,6 +3,7 @@ import { DashboardStats } from '@/components/dashboard/dashboard-stats'
 import { IncidentTray } from '@/components/dashboard/incident-tray'
 import { OperationsCenter } from '@/components/dashboard/operations-center'
 import { OptimizationLab } from '@/components/dashboard/optimization-lab'
+import { PublishingConsole } from '@/components/dashboard/publishing-console'
 import { UpcomingPostsTable } from '@/components/dashboard/upcoming-posts-table'
 import { PublicationChart } from '@/components/dashboard/publication-chart'
 import {
@@ -12,34 +13,27 @@ import {
   getProjectOptimizationRecommendations,
   getUpcomingPosts,
 } from '@/lib/dashboard-data'
+import { getPublishingQueueSnapshot } from '@/lib/publishing'
 
 export default async function DashboardPage() {
-  const [stats, upcomingPosts, commandCenter, incidents, recommendations] = await Promise.all([
+  const [stats, upcomingPosts, commandCenter, incidents, recommendations, publishingSnapshot] = await Promise.all([
     getDashboardStats(),
     getUpcomingPosts(6),
     getDashboardCommandCenter(),
     getOperationalIncidents(6),
     getProjectOptimizationRecommendations(6),
+    getPublishingQueueSnapshot(),
   ])
 
   return (
     <div>
       <Breadcrumbs />
 
-      <div className="dashboard-hero mb-8 enter-up">
-        <div className="relative z-10">
-          <p className="text-xs uppercase tracking-[0.16em] text-primary/90 mb-3">Control comercial</p>
-          <h1 className="view-title mb-3">Panel ejecutivo</h1>
-          <p className="text-sm md:text-base text-foreground/85 max-w-2xl">
-            Supervisa campañas, aprobaciones y rendimiento de publicaciones para proyectos inmobiliarios desde un solo lugar.
-          </p>
-        </div>
-        <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-primary/20 blur-3xl" />
-        <div className="absolute -left-8 -bottom-20 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
-      </div>
+  
 
       <div className="grid gap-6">
         <DashboardStats stats={stats} />
+        <PublishingConsole snapshot={publishingSnapshot} />
         <OperationsCenter data={commandCenter} />
 
         <div className="grid md:grid-cols-2 gap-6">

@@ -68,7 +68,7 @@ export function Sidebar() {
               IN
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-sidebar-foreground">InmoSocial</h1>
+              <h1 className="text-lg font-semibold text-sidebar-foreground">Casa y Mas</h1>
               <p className="text-[11px] text-sidebar-foreground/65">Suite de publicaciones</p>
             </div>
           </div>

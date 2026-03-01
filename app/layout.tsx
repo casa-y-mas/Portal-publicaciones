@@ -10,7 +10,7 @@ const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-playfa
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
 
 export const metadata: Metadata = {
-  title: 'InmoSocial Suite - Panel de redes sociales',
+  title: 'Casa y Mas Suite - Panel de redes sociales',
   description: 'Programacion y gestion profesional de redes sociales para bienes raices',
   generator: 'v0.app',
 }

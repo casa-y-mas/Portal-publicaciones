@@ -78,18 +78,30 @@ model Project {
 }
 
 model SocialAccount {
-  id        String          @id @default(cuid())
-  platform  AccountPlatform
-  username  String
-  type      String
-  status    AccountStatus   @default(connected)
-  expiresAt DateTime?
-  projectId String
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id               String          @id @default(cuid())
+  platform         AccountPlatform
+  username         String
+  type             String
+  status           AccountStatus   @default(connected)
+  expiresAt        DateTime?
+  projectId        String
+  oauthProvider    String?
+  oauthState       String?
+  accessToken      String?
+  refreshToken     String?
+  tokenScopes      String?
+  tokenLastChecked DateTime?
+  connectedAt      DateTime?
+  lastError        String?
+  pageId           String?
+  pageName         String?
+  instagramUserId  String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+  @@index([oauthProvider])
 }
 
 model ScheduledPost {
