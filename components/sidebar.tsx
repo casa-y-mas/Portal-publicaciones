@@ -17,6 +17,7 @@ import {
   Building2,
   BarChart3,
   Bell,
+  Megaphone,
   Menu,
   X,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ const navItems = [
   { label: 'Biblioteca', href: '/library', icon: Library },
   { label: 'Aprobaciones', href: '/approvals', icon: CheckCircle },
   { label: 'Proyectos', href: '/projects', icon: Building2 },
+  { label: 'Campanas', href: '/campaigns', icon: Megaphone },
   { label: 'Reportes', href: '/reports', icon: BarChart3 },
   { label: 'Notificaciones', href: '/notifications', icon: Bell },
   { label: 'Cuentas sociales', href: '/social-accounts', icon: Zap },
@@ -46,7 +48,7 @@ export function Sidebar() {
     <>
       <button
         onClick={() => setOpen(!open)}
-        className="fixed md:hidden bottom-4 right-4 z-50 bg-primary text-primary-foreground p-3 rounded-full shadow-lg"
+        className="fixed bottom-4 right-4 z-50 rounded-full bg-primary p-3 text-primary-foreground shadow-lg md:hidden"
       >
         {open ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -59,11 +61,11 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-40 transform transition-transform duration-200 md:translate-x-0 ${
+        className={`fixed left-0 top-0 z-40 flex h-screen w-[86vw] max-w-[18rem] flex-col border-r border-sidebar-border bg-sidebar transform transition-transform duration-200 md:w-64 md:max-w-none md:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-5 border-b border-sidebar-border bg-gradient-to-b from-primary/20 to-transparent">
+        <div className="border-b border-sidebar-border bg-gradient-to-b from-primary/20 to-transparent p-4 md:p-5">
           <div className="flex items-center gap-3">
             <div className="relative h-9 w-9 overflow-hidden rounded-xl shadow">
               <Image
@@ -76,13 +78,13 @@ export function Sidebar() {
               />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-sidebar-foreground">Casa y Mas</h1>
-              <p className="text-[11px] text-sidebar-foreground/65">Suite de publicaciones</p>
+              <h1 className="text-base font-semibold text-sidebar-foreground md:text-lg">Casa y Mas</h1>
+              <p className="text-[10px] text-sidebar-foreground/65 md:text-[11px]">Suite de publicaciones</p>
             </div>
           </div>
         </div>
 
-        <nav className="sidebar-scroll relative flex-1 overflow-y-auto py-4 px-3 pr-2">
+        <nav className="sidebar-scroll relative flex-1 overflow-y-auto px-2 py-3 pr-1 md:px-3 md:py-4 md:pr-2">
           <p className="px-3 pb-3 text-[11px] uppercase tracking-[0.18em] text-sidebar-foreground/55">Navegacion</p>
           <div className="space-y-1.5">
             {navItems.map((item) => {
@@ -100,8 +102,8 @@ export function Sidebar() {
                       : 'text-sidebar-foreground/90 hover:bg-sidebar-accent/35 hover:text-sidebar-accent-foreground'
                   }`}
                 >
-                  <Icon size={18} />
-                  <span className="text-[15px]">{item.label}</span>
+                  <Icon size={18} className="shrink-0" />
+                  <span className="text-sm leading-5 md:text-[15px]">{item.label}</span>
                 </Link>
               );
             })}
@@ -121,5 +123,3 @@ export function Sidebar() {
     </>
   );
 }
-
-

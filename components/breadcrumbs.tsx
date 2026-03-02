@@ -13,6 +13,7 @@ const breadcrumbMap: Record<string, string> = {
   '/library': 'Biblioteca multimedia',
   '/approvals': 'Aprobaciones',
   '/projects': 'Proyectos',
+  '/campaigns': 'Campanas',
   '/reports': 'Reportes',
   '/notifications': 'Notificaciones',
   '/social-accounts': 'Cuentas sociales',
@@ -29,7 +30,7 @@ export function Breadcrumbs() {
   const segments = pathname.split('/').filter(Boolean);
 
   return (
-    <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+    <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
       <Link href="/dashboard" className="flex items-center hover:text-foreground transition-colors">
         <Home size={16} />
       </Link>
