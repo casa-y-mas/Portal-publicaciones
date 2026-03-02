@@ -50,6 +50,21 @@ enum PostStatus {
   failed
 }
 
+enum NotificationType {
+  failed
+  token_expiring
+  approval
+  success
+  system
+}
+
+enum LogLevel {
+  info
+  warning
+  error
+  success
+}
+
 model User {
   id            String          @id @default(cuid())
   name          String
@@ -152,4 +167,36 @@ model MediaAsset {
   @@index([projectId])
   @@index([uploadedById])
   @@index([type])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  href      String?
+  read      Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([type])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id         String    @id @default(cuid())
+  level      LogLevel
+  category   String
+  action     String
+  targetType String?
+  targetId   String?
+  summary    String
+  detailJson Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([level])
+  @@index([category])
+  @@index([createdAt])
 }

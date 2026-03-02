@@ -561,7 +561,7 @@ export const auditTrail = [
     user: 'Sofia Rodriguez',
     action: 'reschedule',
     target: 'Publicacion 8',
-    details: 'Se movio la publicacion y luego se cancelo tras cambio de campana.',
+    details: 'Se movio la publicacion y luego se cancelo tras cambio de campaña.',
     at: daysFromNow(-1, 18, 20),
   },
   {

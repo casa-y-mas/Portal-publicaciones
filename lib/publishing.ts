@@ -1,5 +1,6 @@
 import { AccountStatus, PostStatus, Prisma } from '@prisma/client'
 
+import { createActivityLog, createNotification } from '@/lib/operations-feed'
 import { prisma } from '@/lib/prisma'
 
 type PlatformName = 'instagram' | 'facebook'
@@ -113,6 +114,24 @@ export async function processScheduledPublications(limit = 10): Promise<PublishE
         where: { id: post.id },
         data: { status: PostStatus.failed },
       })
+      await Promise.all([
+        createActivityLog({
+          level: 'error',
+          category: 'publisher',
+          action: 'publish_failed',
+          targetType: 'scheduled_post',
+          targetId: post.id,
+          summary: `Fallo de publicacion para ${post.title}: sin redes configuradas.`,
+          detail: { reason: 'missing_platforms' },
+        }),
+        createNotification({
+          type: 'failed',
+          title: 'Publicacion fallida',
+          message: `"${post.title}" fallo porque no tiene redes configuradas.`,
+          href: '/publicaciones-programadas?status=failed',
+          metadata: { postId: post.id },
+        }),
+      ])
       failed += 1
       items.push({
         postId: post.id,
@@ -129,6 +148,24 @@ export async function processScheduledPublications(limit = 10): Promise<PublishE
         where: { id: post.id },
         data: { status: PostStatus.failed },
       })
+      await Promise.all([
+        createActivityLog({
+          level: 'error',
+          category: 'publisher',
+          action: 'publish_failed',
+          targetType: 'scheduled_post',
+          targetId: post.id,
+          summary: `Fallo de publicacion para ${post.title}: sin archivo multimedia.`,
+          detail: { reason: 'missing_media' },
+        }),
+        createNotification({
+          type: 'failed',
+          title: 'Publicacion fallida',
+          message: `"${post.title}" fallo porque no tiene archivo multimedia.`,
+          href: '/library',
+          metadata: { postId: post.id },
+        }),
+      ])
       failed += 1
       items.push({
         postId: post.id,
@@ -202,6 +239,24 @@ export async function processScheduledPublications(limit = 10): Promise<PublishE
     })
 
     if (postFailed) {
+      await Promise.all([
+        createActivityLog({
+          level: 'error',
+          category: 'publisher',
+          action: 'publish_failed',
+          targetType: 'scheduled_post',
+          targetId: post.id,
+          summary: `Fallo parcial de publicacion para ${post.title}.`,
+          detail: { platformResults },
+        }),
+        createNotification({
+          type: 'failed',
+          title: 'Publicacion con error',
+          message: `"${post.title}" no pudo completarse en todas las redes.`,
+          href: '/publicaciones-programadas?status=failed',
+          metadata: { postId: post.id, platformResults },
+        }),
+      ])
       failed += 1
       items.push({
         postId: post.id,
@@ -211,6 +266,24 @@ export async function processScheduledPublications(limit = 10): Promise<PublishE
         platformResults,
       })
     } else {
+      await Promise.all([
+        createActivityLog({
+          level: 'success',
+          category: 'publisher',
+          action: 'publish_success',
+          targetType: 'scheduled_post',
+          targetId: post.id,
+          summary: `Publicacion completada para ${post.title}.`,
+          detail: { platformResults },
+        }),
+        createNotification({
+          type: 'success',
+          title: 'Publicacion exitosa',
+          message: `"${post.title}" se proceso correctamente.`,
+          href: '/publicaciones-programadas',
+          metadata: { postId: post.id, platformResults },
+        }),
+      ])
       published += 1
       items.push({
         postId: post.id,

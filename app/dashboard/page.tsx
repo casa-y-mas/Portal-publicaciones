@@ -1,5 +1,6 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { DashboardStats } from '@/components/dashboard/dashboard-stats'
+import { ExecutiveInbox } from '@/components/dashboard/executive-inbox'
 import { IncidentTray } from '@/components/dashboard/incident-tray'
 import { OperationsCenter } from '@/components/dashboard/operations-center'
 import { OptimizationLab } from '@/components/dashboard/optimization-lab'
@@ -9,6 +10,7 @@ import { PublicationChart } from '@/components/dashboard/publication-chart'
 import {
   getDashboardCommandCenter,
   getDashboardStats,
+  getExecutiveInbox,
   getOperationalIncidents,
   getProjectOptimizationRecommendations,
   getUpcomingPosts,
@@ -16,10 +18,11 @@ import {
 import { getPublishingQueueSnapshot } from '@/lib/publishing'
 
 export default async function DashboardPage() {
-  const [stats, upcomingPosts, commandCenter, incidents, recommendations, publishingSnapshot] = await Promise.all([
+  const [stats, upcomingPosts, commandCenter, inbox, incidents, recommendations, publishingSnapshot] = await Promise.all([
     getDashboardStats(),
     getUpcomingPosts(6),
     getDashboardCommandCenter(),
+    getExecutiveInbox(8),
     getOperationalIncidents(6),
     getProjectOptimizationRecommendations(6),
     getPublishingQueueSnapshot(),
@@ -33,6 +36,7 @@ export default async function DashboardPage() {
 
       <div className="grid gap-6">
         <DashboardStats stats={stats} />
+        <ExecutiveInbox data={inbox} />
         <PublishingConsole snapshot={publishingSnapshot} />
         <OperationsCenter data={commandCenter} />
 

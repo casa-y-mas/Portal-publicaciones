@@ -84,6 +84,28 @@ export interface ProjectOptimizationRecommendation {
   rationale: string
 }
 
+export interface ExecutiveInboxMetric {
+  label: string
+  value: number
+  href: string
+  tone: 'primary' | 'warning' | 'danger' | 'neutral'
+}
+
+export interface ExecutiveInboxItem {
+  id: string
+  title: string
+  description: string
+  href: string
+  priority: 'alta' | 'media'
+  category: 'vencida' | 'aprobacion' | 'token' | 'fallo' | 'alerta'
+  createdAt: string
+}
+
+export interface ExecutiveInboxData {
+  metrics: ExecutiveInboxMetric[]
+  items: ExecutiveInboxItem[]
+}
+
 export interface ApprovalQueueItem {
   id: string
   title: string
@@ -661,5 +683,133 @@ export async function getReportSummary(): Promise<ReportSummaryData> {
     byProject: Array.from(byProjectMap.entries())
       .map(([project, total]) => ({ project, total }))
       .sort((a, b) => b.total - a.total),
+  }
+}
+
+export async function getExecutiveInbox(limit = 8): Promise<ExecutiveInboxData> {
+  const now = new Date()
+  const in48h = new Date(now.getTime() + 48 * 60 * 60 * 1000)
+  const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  const [dueScheduled, pendingApprovals, tokenRiskAccounts, failedPosts, unreadNotifications] = await Promise.all([
+    prisma.scheduledPost.findMany({
+      where: {
+        status: PostStatus.scheduled,
+        publishAt: { lte: now },
+      },
+      orderBy: { publishAt: 'asc' },
+      take: Math.max(4, limit),
+      select: {
+        id: true,
+        title: true,
+        publishAt: true,
+      },
+    }),
+    prisma.scheduledPost.findMany({
+      where: {
+        status: PostStatus.pending_approval,
+        publishAt: { lte: in48h },
+      },
+      orderBy: { publishAt: 'asc' },
+      take: Math.max(4, limit),
+      select: {
+        id: true,
+        title: true,
+        publishAt: true,
+      },
+    }),
+    prisma.socialAccount.findMany({
+      where: {
+        status: { in: ['token_expiring', 'disconnected'] },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: Math.max(4, limit),
+      select: {
+        id: true,
+        username: true,
+        status: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.scheduledPost.findMany({
+      where: {
+        status: PostStatus.failed,
+        updatedAt: { gte: last7d },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: Math.max(4, limit),
+      select: {
+        id: true,
+        title: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.notification.count({
+      where: { read: false },
+    }).catch((error) => {
+      if (typeof error === 'object' && error && 'code' in error && error.code === 'P2021') return 0
+      throw error
+    }),
+  ])
+
+  const items: ExecutiveInboxItem[] = [
+    ...dueScheduled.map((item) => ({
+      id: `due-${item.id}`,
+      title: `Publicacion vencida: ${item.title}`,
+      description: 'La publicacion ya debio procesarse y requiere ejecucion o revision inmediata.',
+      href: '/publicaciones-programadas',
+      priority: 'alta' as const,
+      category: 'vencida' as const,
+      createdAt: item.publishAt.toISOString(),
+    })),
+    ...pendingApprovals.map((item) => ({
+      id: `approval-${item.id}`,
+      title: `Aprobacion pendiente: ${item.title}`,
+      description: 'Hay una publicacion cercana al corte que aun no ha sido aprobada.',
+      href: '/approvals',
+      priority: 'alta' as const,
+      category: 'aprobacion' as const,
+      createdAt: item.publishAt.toISOString(),
+    })),
+    ...tokenRiskAccounts.map((item) => ({
+      id: `token-${item.id}`,
+      title: `Cuenta en riesgo: ${item.username}`,
+      description:
+        item.status === 'disconnected'
+          ? 'La cuenta esta desconectada y bloqueara publicaciones.'
+          : 'El token esta por expirar y debe renovarse antes del siguiente ciclo.',
+      href: '/social-accounts',
+      priority: item.status === 'disconnected' ? ('alta' as const) : ('media' as const),
+      category: 'token' as const,
+      createdAt: item.updatedAt.toISOString(),
+    })),
+    ...failedPosts.map((item) => ({
+      id: `failed-${item.id}`,
+      title: `Fallo reciente: ${item.title}`,
+      description: 'Hubo un error de ejecucion reciente que debe revisarse en la bitacora.',
+      href: '/logs',
+      priority: 'media' as const,
+      category: 'fallo' as const,
+      createdAt: item.updatedAt.toISOString(),
+    })),
+  ]
+
+  const metrics: ExecutiveInboxMetric[] = [
+    { label: 'Vencidas ahora', value: dueScheduled.length, href: '/publicaciones-programadas', tone: dueScheduled.length > 0 ? 'danger' : 'neutral' },
+    { label: 'Pendientes 48h', value: pendingApprovals.length, href: '/approvals', tone: pendingApprovals.length > 0 ? 'warning' : 'neutral' },
+    { label: 'Cuentas en riesgo', value: tokenRiskAccounts.length, href: '/social-accounts', tone: tokenRiskAccounts.length > 0 ? 'warning' : 'neutral' },
+    { label: 'Alertas sin leer', value: unreadNotifications, href: '/notifications', tone: unreadNotifications > 0 ? 'primary' : 'neutral' },
+  ]
+
+  return {
+    metrics,
+    items: items
+      .sort((a, b) => {
+        const priorityOrder = { alta: 0, media: 1 }
+        const byPriority = priorityOrder[a.priority] - priorityOrder[b.priority]
+        if (byPriority !== 0) return byPriority
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      })
+      .slice(0, limit),
   }
 }

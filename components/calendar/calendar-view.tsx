@@ -54,7 +54,7 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
   const calendarRef = useRef<FullCalendar | null>(null)
   const [posts, setPosts] = useState<CalendarPostItem[]>([])
   const [range, setRange] = useState<{ start: string; end: string } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [selectedPost, setSelectedPost] = useState<CalendarPostItem | null>(null)
@@ -214,10 +214,13 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
       ) : null}
 
       <div className="surface-card p-4 md:p-6">
-        {loading ? (
-          <div className="py-16 text-center text-muted-foreground">Cargando calendario...</div>
-        ) : (
-          <div className="calendar-pro">
+        <div className="calendar-pro relative">
+          {loading ? (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm">
+              <div className="py-16 text-center text-muted-foreground">Cargando calendario...</div>
+            </div>
+          ) : null}
+          <div className={!range ? 'opacity-0 pointer-events-none min-h-[420px]' : undefined}>
             <FullCalendar
               ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -257,7 +260,7 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
               )}
             />
           </div>
-        )}
+        </div>
       </div>
 
       {selectedPost ? (

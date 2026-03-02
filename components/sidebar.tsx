@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -64,8 +65,15 @@ export function Sidebar() {
       >
         <div className="p-5 border-b border-sidebar-border bg-gradient-to-b from-primary/20 to-transparent">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-bold shadow">
-              IN
+            <div className="relative h-9 w-9 overflow-hidden rounded-xl shadow">
+              <Image
+                src="/img/Icono.webp"
+                alt="Casa y Mas"
+                fill
+                className="object-cover"
+                sizes="36px"
+                priority
+              />
             </div>
             <div>
               <h1 className="text-lg font-semibold text-sidebar-foreground">Casa y Mas</h1>
@@ -101,15 +109,17 @@ export function Sidebar() {
           <div className="pointer-events-none sticky bottom-0 h-8 bg-gradient-to-t from-sidebar to-transparent" />
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
+        {/* <div className="p-4 border-t border-sidebar-border">
           <div className="rounded-xl border border-sidebar-border bg-white/5 p-3">
             <p className="text-xs text-sidebar-foreground/70">Plan activo</p>
             <p className="text-sm font-semibold text-sidebar-foreground mt-1">Equipo Pro</p>
           </div>
-        </div>
+        </div> */}
       </aside>
 
       <div className="md:ml-64" />
     </>
   );
 }
+
+

@@ -16,7 +16,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { notifications } from '@/lib/mock-data'
 
 interface ProjectOption {
   id: string
@@ -30,12 +29,13 @@ export function Topbar() {
 
   const [searchOpen, setSearchOpen] = useState(false)
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [hydrated, setHydrated] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const { data: session } = useSession()
-  const unreadCount = notifications.filter((item) => !item.read).length
   const selectedProjectId = searchParams.get('projectId') ?? 'all'
 
-  const userName = session?.user?.name ?? 'Usuario'
-  const userRole = session?.user?.role ?? 'editor'
+  const userName = hydrated ? (session?.user?.name ?? 'Usuario') : 'Usuario'
+  const userRole = hydrated ? (session?.user?.role ?? 'editor') : 'editor'
   const roleLabel: Record<string, string> = {
     admin: 'Administrador',
     supervisor: 'Supervisor',
@@ -51,19 +51,28 @@ export function Topbar() {
     .toUpperCase()
 
   useEffect(() => {
+    setHydrated(true)
+
     let mounted = true
 
     const loadProjects = async () => {
       try {
-        const response = await fetch('/api/projects')
-        if (!response.ok) return
-        const json = await response.json()
+        const [projectsResponse, notificationsResponse] = await Promise.all([
+          fetch('/api/projects'),
+          fetch('/api/notifications'),
+        ])
+        if (!projectsResponse.ok) return
+        const json = await projectsResponse.json()
         if (mounted) {
           const list = (json.items ?? []).map((item: { id: string; name: string }) => ({
             id: item.id,
             name: item.name,
           }))
           setProjects(list)
+        }
+        if (mounted && notificationsResponse.ok) {
+          const notificationsJson = await notificationsResponse.json()
+          setUnreadCount(notificationsJson.unreadCount ?? 0)
         }
       } catch {
         // no-op
@@ -119,7 +128,7 @@ export function Topbar() {
               className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-card border border-border rounded-xl text-muted-foreground text-sm hover:border-primary/35 transition-colors"
             >
               <Search size={18} />
-              <span>Buscar campana, activo o proyecto...</span>
+              <span>Buscar campaña, activo o proyecto...</span>
             </button>
           )}
         </div>
