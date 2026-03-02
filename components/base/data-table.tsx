@@ -40,18 +40,20 @@ export function DataTableCard({
         </div>
       ) : null}
 
-      <Table>
-        <TableHeader className="bg-muted/50">
-          <TableRow>
-            {columns.map((column) => (
-              <TableHead key={column.key} className={cn('text-sm font-semibold', column.className)}>
-                {column.label}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>{children}</TableBody>
-      </Table>
+      <div className="w-full overflow-x-auto">
+        <Table className="min-w-[760px]">
+          <TableHeader className="bg-muted/50">
+            <TableRow>
+              {columns.map((column) => (
+                <TableHead key={column.key} className={cn('text-sm font-semibold whitespace-nowrap', column.className)}>
+                  {column.label}
+                </TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>{children}</TableBody>
+        </Table>
+      </div>
 
       {empty ? (
         <div className="p-12 text-center">

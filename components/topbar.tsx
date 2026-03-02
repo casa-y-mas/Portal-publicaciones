@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useSession, signOut } from 'next-auth/react'
-import { Search, Bell, LogOut, Settings, Plus } from 'lucide-react'
+import { signOut, useSession } from 'next-auth/react'
+import { Bell, LogOut, Plus, Search, Settings } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -55,31 +55,35 @@ export function Topbar() {
 
     let mounted = true
 
-    const loadProjects = async () => {
+    const loadHeaderData = async () => {
       try {
         const [projectsResponse, notificationsResponse] = await Promise.all([
           fetch('/api/projects'),
           fetch('/api/notifications'),
         ])
-        if (!projectsResponse.ok) return
-        const json = await projectsResponse.json()
-        if (mounted) {
-          const list = (json.items ?? []).map((item: { id: string; name: string }) => ({
-            id: item.id,
-            name: item.name,
-          }))
-          setProjects(list)
+
+        if (projectsResponse.ok) {
+          const json = await projectsResponse.json()
+          if (mounted) {
+            setProjects(
+              (json.items ?? []).map((item: { id: string; name: string }) => ({
+                id: item.id,
+                name: item.name,
+              })),
+            )
+          }
         }
-        if (mounted && notificationsResponse.ok) {
-          const notificationsJson = await notificationsResponse.json()
-          setUnreadCount(notificationsJson.unreadCount ?? 0)
+
+        if (notificationsResponse.ok && mounted) {
+          const json = await notificationsResponse.json()
+          setUnreadCount(json.unreadCount ?? 0)
         }
       } catch {
         // no-op
       }
     }
 
-    loadProjects()
+    loadHeaderData()
 
     return () => {
       mounted = false
@@ -108,35 +112,44 @@ export function Topbar() {
   }
 
   return (
-    <header className="fixed top-0 right-0 left-0 md:left-64 h-16 z-30 border-b border-border bg-background/75 backdrop-blur-xl">
-      <div className="flex items-center justify-between h-full px-4 md:px-6">
-        <div className="flex-1 max-w-xl">
+    <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-background/75 backdrop-blur-xl md:left-64">
+      <div className="flex min-h-16 items-center justify-between gap-2 px-3 py-2 sm:px-4 md:px-6">
+        <div className="flex min-w-0 flex-1 max-w-xl items-center">
           {searchOpen ? (
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
               <Input
                 type="text"
                 placeholder="Buscar publicaciones, proyectos..."
-                className="pl-10 w-full rounded-xl border-border/70 bg-card/80"
+                className="w-full rounded-xl border-border/70 bg-card/80 pl-10"
                 autoFocus
                 onBlur={() => setSearchOpen(false)}
               />
             </div>
           ) : (
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="hidden md:flex items-center gap-2 px-4 py-2.5 bg-card border border-border rounded-xl text-muted-foreground text-sm hover:border-primary/35 transition-colors"
-            >
-              <Search size={18} />
-              <span>Buscar campaña, activo o proyecto...</span>
-            </button>
+            <>
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/35 md:flex"
+              >
+                <Search size={18} />
+                <span>Buscar campana, activo o proyecto...</span>
+              </button>
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-colors hover:border-primary/35 md:hidden"
+                aria-label="Buscar"
+              >
+                <Search size={18} />
+              </button>
+            </>
           )}
         </div>
 
-        <div className="flex items-center gap-3 ml-4">
+        <div className="ml-2 flex shrink-0 items-center gap-1.5 sm:gap-2 md:ml-4 md:gap-3">
           <div className="hidden xl:block min-w-56">
             <Select value={selectedProjectId} onValueChange={handleProjectChange}>
-              <SelectTrigger className="h-10 rounded-xl bg-card border-border text-sm">
+              <SelectTrigger className="h-10 rounded-xl border-border bg-card text-sm">
                 <SelectValue placeholder="Seleccionar proyecto">{selectedProjectName}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -152,27 +165,30 @@ export function Topbar() {
 
           <Link
             href="/create"
-            className="hidden md:inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow hover:brightness-105 transition-all"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground shadow transition-all hover:brightness-105"
           >
             <Plus size={16} />
-            Nueva publicacion
+            <span className="hidden lg:inline">Nueva publicacion</span>
           </Link>
 
-          <Link href="/notifications" className="relative p-2.5 hover:bg-muted rounded-xl transition-colors border border-transparent hover:border-border">
+          <Link
+            href="/notifications"
+            className="relative rounded-xl border border-transparent p-2.5 transition-colors hover:border-border hover:bg-muted"
+          >
             <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-destructive text-white text-[10px] flex items-center justify-center">
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] text-white">
                 {unreadCount}
               </span>
-            )}
+            ) : null}
           </Link>
 
           <ThemeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 pl-2 pr-2 py-1.5 hover:bg-muted rounded-xl transition-colors border border-transparent hover:border-border">
-                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold shadow-sm">
+              <button className="flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1.5 transition-colors hover:border-border hover:bg-muted sm:px-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-sm">
                   {userInitials}
                 </div>
               </button>
@@ -180,7 +196,7 @@ export function Topbar() {
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-4 py-2">
                 <p className="text-sm font-semibold">{userName}</p>
-                <p className="text-xs text-muted-foreground capitalize">{roleLabel[userRole] ?? userRole}</p>
+                <p className="text-xs capitalize text-muted-foreground">{roleLabel[userRole] ?? userRole}</p>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem>

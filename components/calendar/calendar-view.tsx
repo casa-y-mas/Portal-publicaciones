@@ -213,14 +213,15 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
         </div>
       ) : null}
 
-      <div className="surface-card p-4 md:p-6">
+      <div className="surface-card p-3 md:p-6">
         <div className="calendar-pro relative">
           {loading ? (
             <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm">
               <div className="py-16 text-center text-muted-foreground">Cargando calendario...</div>
             </div>
           ) : null}
-          <div className={!range ? 'opacity-0 pointer-events-none min-h-[420px]' : undefined}>
+          <div className={`overflow-x-auto ${!range ? 'opacity-0 pointer-events-none min-h-[420px]' : ''}`}>
+            <div className="min-w-[720px] md:min-w-0">
             <FullCalendar
               ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -259,6 +260,7 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
                 </div>
               )}
             />
+            </div>
           </div>
         </div>
       </div>

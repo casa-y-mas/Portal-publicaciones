@@ -85,8 +85,8 @@ export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }
 
   return (
     <div className="bg-card border border-border rounded-lg p-4 space-y-4">
-      <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
           <Button variant={view === 'month' ? 'default' : 'outline'} size="sm" onClick={() => onViewChange('month')}>
             Mes
           </Button>
@@ -98,7 +98,7 @@ export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }
           </Button>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 flex-1">
           <Select value={filters.platform} onValueChange={(value) => onFiltersChange({ ...filters, platform: value })}>
             <SelectTrigger>
               <SelectValue placeholder="Red" />
@@ -157,10 +157,11 @@ export function CalendarFilters({ view, onViewChange, filters, onFiltersChange }
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-stretch sm:justify-end">
         <Button
           variant="outline"
           size="sm"
+          className="w-full sm:w-auto"
           onClick={() =>
             onFiltersChange({
               platform: 'all',
