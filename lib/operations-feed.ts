@@ -24,15 +24,20 @@ export async function createNotification(input: {
   metadata?: Prisma.InputJsonValue | null
 }) {
   if (!hasModelDelegate('notification')) return null
-  return prisma.notification.create({
-    data: {
-      type: input.type,
-      title: input.title,
-      message: input.message,
-      href: input.href ?? null,
-      metadata: input.metadata ?? Prisma.JsonNull,
-    },
-  })
+  try {
+    return await prisma.notification.create({
+      data: {
+        type: input.type,
+        title: input.title,
+        message: input.message,
+        href: input.href ?? null,
+        metadata: input.metadata ?? Prisma.JsonNull,
+      },
+    })
+  } catch (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
 }
 
 export async function createActivityLog(input: {
@@ -45,17 +50,22 @@ export async function createActivityLog(input: {
   detail?: Prisma.InputJsonValue | null
 }) {
   if (!hasModelDelegate('activityLog')) return null
-  return prisma.activityLog.create({
-    data: {
-      level: input.level,
-      category: input.category,
-      action: input.action,
-      targetType: input.targetType ?? null,
-      targetId: input.targetId ?? null,
-      summary: input.summary,
-      detailJson: input.detail ?? Prisma.JsonNull,
-    },
-  })
+  try {
+    return await prisma.activityLog.create({
+      data: {
+        level: input.level,
+        category: input.category,
+        action: input.action,
+        targetType: input.targetType ?? null,
+        targetId: input.targetId ?? null,
+        summary: input.summary,
+        detailJson: input.detail ?? Prisma.JsonNull,
+      },
+    })
+  } catch (error) {
+    if (isMissingTableError(error)) return null
+    throw error
+  }
 }
 
 export async function getNotificationsData(limit = 40) {
