@@ -51,6 +51,7 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
   const [editingPost, setEditingPost] = useState<ScheduledPostItem | null>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [publishingId, setPublishingId] = useState<string | null>(null)
   const [bulkLoading, setBulkLoading] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [editForm, setEditForm] = useState({
@@ -170,6 +171,38 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
       setError(cancelError instanceof Error ? cancelError.message : 'Error cancelando publicacion.')
     } finally {
       setActingId(null)
+    }
+  }
+
+  const publishNow = async (postId: string) => {
+    setPublishingId(postId)
+    setError(null)
+    setSuccess(null)
+    try {
+      const response = await fetch(`/api/publisher/run?postId=${encodeURIComponent(postId)}&limit=1`, {
+        method: 'POST',
+      })
+      const json = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(json?.message ?? 'No se pudo publicar manualmente.')
+      }
+
+      const item = Array.isArray(json?.items) ? json.items.find((entry: { postId?: string }) => entry.postId === postId) : null
+      if (!item) {
+        throw new Error('El publicador no devolvio resultado para la publicacion seleccionada.')
+      }
+
+      if (item.finalStatus !== 'published') {
+        throw new Error(item.detail ?? 'La publicacion no pudo enviarse.')
+      }
+
+      setSuccess('Publicacion enviada manualmente.')
+      setSelectedPost(null)
+      await loadPosts()
+    } catch (publishError) {
+      setError(publishError instanceof Error ? publishError.message : 'Error publicando manualmente.')
+    } finally {
+      setPublishingId(null)
     }
   }
 
@@ -356,7 +389,14 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
         ) : null}
       </DataTableCard>
 
-      {selectedPost ? <PostDetailModal post={selectedPost} onClose={() => setSelectedPost(null)} /> : null}
+      {selectedPost ? (
+        <PostDetailModal
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          onPublishNow={publishNow}
+          publishLoading={publishingId === selectedPost.id}
+        />
+      ) : null}
       {editingPost ? (
         <AppModal
           open
