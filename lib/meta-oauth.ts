@@ -76,6 +76,7 @@ export async function createMetaOAuthStart(accountId: string) {
   })
 
   const scopes = [
+    'business_management',
     'pages_show_list',
     'pages_read_engagement',
     'pages_manage_posts',
@@ -321,23 +322,21 @@ export async function finalizeMetaOAuth(input: FinalizeInput) {
           instagramUserId: input.instagramUserId ?? null,
         }
 
-  if (existing.platform === 'facebook' && !selectedMetaPage?.pageId) {
-    throw new Error('La cuenta Meta no tiene paginas administrables. Crea una pagina de Facebook y vuelve a conectar.')
-  }
-
   const now = new Date()
+  const missingPageForFacebook = existing.platform === 'facebook' && !selectedMetaPage?.pageId
+  const missingPageMessage = 'La cuenta Meta no tiene paginas administrables. Crea una pagina de Facebook y vuelve a conectar.'
   const updated = await prisma.socialAccount.update({
     where: { id: input.accountId },
     data: {
-      status: AccountStatus.connected,
+      status: missingPageForFacebook ? AccountStatus.disconnected : AccountStatus.connected,
       oauthProvider: 'meta',
       oauthState: null,
-      accessToken: selectedMetaPage?.pageAccessToken ?? tokenBundle.accessToken,
+      accessToken: selectedMetaPage?.pageAccessToken || tokenBundle.accessToken,
       refreshToken: tokenBundle.source === 'meta' ? tokenBundle.accessToken : tokenBundle.refreshToken,
       tokenScopes: Array.from(new Set([...(input.scopes ?? []), ...tokenBundle.scopes])).join(','),
       tokenLastChecked: now,
       connectedAt: now,
-      lastError: null,
+      lastError: missingPageForFacebook ? missingPageMessage : null,
       expiresAt: tokenBundle.expiresAt,
       pageId: selectedMetaPage?.pageId ?? null,
       pageName: selectedMetaPage?.pageName ?? null,
