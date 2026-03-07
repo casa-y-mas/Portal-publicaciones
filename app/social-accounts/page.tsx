@@ -40,6 +40,13 @@ interface SocialAccountItem {
   project: ProjectOption
 }
 
+interface MetaPageOption {
+  pageId: string
+  pageName: string
+  instagramUserId: string | null
+  isSelected: boolean
+}
+
 interface SocialAccountFormState {
   platform: Platform
   username: string
@@ -71,6 +78,8 @@ export default function SocialAccountsPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [actingId, setActingId] = useState<string | null>(null)
+  const [pagesLoadingFor, setPagesLoadingFor] = useState<string | null>(null)
+  const [pagesByAccount, setPagesByAccount] = useState<Record<string, MetaPageOption[]>>({})
 
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<SocialAccountItem | null>(null)
@@ -330,6 +339,50 @@ export default function SocialAccountsPage() {
     }
   }
 
+  const loadMetaPages = async (account: SocialAccountItem) => {
+    setPagesLoadingFor(account.id)
+    try {
+      const response = await fetch(`/api/social-accounts/${account.id}/oauth/pages`)
+      if (!response.ok) {
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudieron cargar las paginas de Meta.')
+      }
+
+      const json = await response.json()
+      const pages: MetaPageOption[] = json?.item?.pages ?? []
+      setPagesByAccount((prev) => ({ ...prev, [account.id]: pages }))
+    } catch (pagesError) {
+      setError(pagesError instanceof Error ? pagesError.message : 'Error cargando paginas de Meta.')
+    } finally {
+      setPagesLoadingFor(null)
+    }
+  }
+
+  const selectMetaPage = async (account: SocialAccountItem, pageId: string) => {
+    if (!pageId) return
+    setActingId(account.id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const response = await fetch(`/api/social-accounts/${account.id}/oauth/pages`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pageId }),
+      })
+      if (!response.ok) {
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudo seleccionar la pagina.')
+      }
+
+      setSuccess('Pagina de Facebook configurada correctamente.')
+      await Promise.all([loadData(), loadMetaPages(account)])
+    } catch (selectError) {
+      setError(selectError instanceof Error ? selectError.message : 'Error seleccionando pagina.')
+    } finally {
+      setActingId(null)
+    }
+  }
+
   const formBody = (
     <div className="space-y-4">
       <div className="grid sm:grid-cols-2 gap-4">
@@ -439,7 +492,7 @@ export default function SocialAccountsPage() {
       <div className="surface-card p-6 mb-6">
         <h3 className="text-lg font-semibold mb-3">Estado de integracion</h3>
         <p className="text-sm text-muted-foreground">
-          Esta fase ya persiste cuentas reales por proyecto. La renovacion de token es manual y sirve como paso puente hasta integrar OAuth con Meta.
+          Esta pantalla conecta OAuth de Meta, permite elegir pagina por cuenta y deja listo el token operativo para publicar en Facebook.
         </p>
       </div>
 
@@ -491,6 +544,39 @@ export default function SocialAccountsPage() {
                   {account.pageName ? <span>Pagina: {account.pageName}</span> : null}
                   {account.lastError ? <span className="text-destructive">Error: {account.lastError}</span> : null}
                 </div>
+
+                {(account.platform === 'facebook' || account.platform === 'instagram') && account.oauthConnected ? (
+                  <div className="mt-4 rounded-lg border border-border p-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => loadMetaPages(account)}
+                        disabled={pagesLoadingFor === account.id || actingId === account.id}
+                      >
+                        {pagesLoadingFor === account.id ? 'Cargando paginas...' : 'Cargar paginas de Meta'}
+                      </Button>
+
+                      {(pagesByAccount[account.id]?.length ?? 0) > 0 ? (
+                        <select
+                          className="rounded-lg border border-border bg-muted px-3 py-2 text-sm min-w-56"
+                          value={account.pageId ?? ''}
+                          onChange={(event) => selectMetaPage(account, event.target.value)}
+                          disabled={actingId === account.id}
+                        >
+                          <option value="" disabled>
+                            Seleccionar pagina de Meta
+                          </option>
+                          {pagesByAccount[account.id]?.map((page) => (
+                            <option key={page.pageId} value={page.pageId}>
+                              {page.pageName}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex gap-2 flex-wrap justify-end">

@@ -1,8 +1,15 @@
 import { Breadcrumbs } from '@/components/breadcrumbs'
+import { WeeklyReportPanel } from '@/components/dashboard/weekly-report-panel'
 import { getReportSummary } from '@/lib/dashboard-data'
+import { getWeeklyExecutiveReport } from '@/lib/executive-reports'
+import { getMetaAnalyticsSummary } from '@/lib/meta-analytics'
 
 export default async function ReportsPage() {
-  const reportSummary = await getReportSummary()
+  const [reportSummary, metaSummary, weeklyReport] = await Promise.all([
+    getReportSummary(),
+    getMetaAnalyticsSummary(7),
+    getWeeklyExecutiveReport(),
+  ])
 
   return (
     <div>
@@ -26,6 +33,67 @@ export default async function ReportsPage() {
           <p className="text-sm text-muted-foreground">Porcentaje de fallos</p>
           <p className="text-3xl font-bold mt-2">{reportSummary.failureRate}%</p>
         </div>
+      </div>
+
+      <div className="mb-6">
+        <WeeklyReportPanel initialReport={weeklyReport} />
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-5 mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <h3 className="font-semibold">Analytics Meta (ultimos {metaSummary.periodDays} dias)</h3>
+          <span className="text-xs rounded-full border border-border px-2 py-1 text-muted-foreground">
+            Modo: {metaSummary.mode}
+          </span>
+        </div>
+
+        <div className="grid md:grid-cols-5 gap-3 mb-4">
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Impresiones</p>
+            <p className="text-xl font-bold">{metaSummary.totals.impressions.toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Alcance</p>
+            <p className="text-xl font-bold">{metaSummary.totals.reach.toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Interacciones</p>
+            <p className="text-xl font-bold">{metaSummary.totals.engagements.toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Visitas perfil</p>
+            <p className="text-xl font-bold">{metaSummary.totals.profileViews.toLocaleString()}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Engagement rate</p>
+            <p className="text-xl font-bold">{metaSummary.totals.engagementRate}%</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          {metaSummary.perPlatform.map((item) => (
+            <div key={item.platform} className="rounded-lg border border-border p-3">
+              <p className="text-sm font-semibold capitalize mb-2">{item.platform}</p>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <p>Impresiones: <span className="text-foreground font-semibold">{item.impressions.toLocaleString()}</span></p>
+                <p>Alcance: <span className="text-foreground font-semibold">{item.reach.toLocaleString()}</span></p>
+                <p>Interacciones: <span className="text-foreground font-semibold">{item.engagements.toLocaleString()}</span></p>
+                <p>Visitas perfil: <span className="text-foreground font-semibold">{item.profileViews.toLocaleString()}</span></p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {metaSummary.warnings.length > 0 ? (
+          <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">Observaciones</p>
+            <div className="space-y-1">
+              {metaSummary.warnings.slice(0, 6).map((warning) => (
+                <p key={warning} className="text-xs text-amber-700 dark:text-amber-200">{warning}</p>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">

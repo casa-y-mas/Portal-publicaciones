@@ -36,6 +36,14 @@ function parsePlatforms(value: Prisma.JsonValue): string[] {
   return value.filter((item): item is string => typeof item === 'string')
 }
 
+function includesFacebook(platforms: string[]) {
+  return platforms.some((platform) => platform.trim().toLowerCase() === 'facebook')
+}
+
+function includesInstagram(platforms: string[]) {
+  return platforms.some((platform) => platform.trim().toLowerCase() === 'instagram')
+}
+
 function parseRecurrence(value: Prisma.JsonValue | null): RecurrenceInfo | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
   const candidate = value as Record<string, unknown>
@@ -144,6 +152,69 @@ export async function POST(request: Request) {
     }
     if (parsed.data.platforms.length === 0) {
       return NextResponse.json({ message: 'Para programar debes seleccionar al menos una red.' }, { status: 400 })
+    }
+    if (includesFacebook(parsed.data.platforms)) {
+      const facebookAccount = await prisma.socialAccount.findFirst({
+        where: {
+          projectId: parsed.data.projectId,
+          platform: 'facebook',
+          status: { in: ['connected', 'token_expiring'] },
+        },
+        select: {
+          id: true,
+          pageId: true,
+          accessToken: true,
+        },
+      })
+
+      if (!facebookAccount) {
+        return NextResponse.json(
+          { message: 'No hay cuenta de Facebook conectada para este proyecto.' },
+          { status: 400 },
+        )
+      }
+
+      if (!facebookAccount.pageId || !facebookAccount.accessToken) {
+        return NextResponse.json(
+          { message: 'La cuenta Facebook conectada aun no tiene pagina seleccionada o token valido.' },
+          { status: 400 },
+        )
+      }
+    }
+    if (includesInstagram(parsed.data.platforms)) {
+      if (parsed.data.contentType === ContentType.story) {
+        return NextResponse.json(
+          { message: 'Instagram Stories aun no estan habilitadas en esta fase.' },
+          { status: 400 },
+        )
+      }
+
+      const instagramAccount = await prisma.socialAccount.findFirst({
+        where: {
+          projectId: parsed.data.projectId,
+          platform: 'instagram',
+          status: { in: ['connected', 'token_expiring'] },
+        },
+        select: {
+          id: true,
+          instagramUserId: true,
+          accessToken: true,
+        },
+      })
+
+      if (!instagramAccount) {
+        return NextResponse.json(
+          { message: 'No hay cuenta de Instagram conectada para este proyecto.' },
+          { status: 400 },
+        )
+      }
+
+      if (!instagramAccount.instagramUserId || !instagramAccount.accessToken) {
+        return NextResponse.json(
+          { message: 'La cuenta Instagram conectada no tiene instagramUserId o token valido.' },
+          { status: 400 },
+        )
+      }
     }
   }
 

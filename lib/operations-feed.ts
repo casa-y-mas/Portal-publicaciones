@@ -11,6 +11,11 @@ function isMissingTableError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2021'
 }
 
+function hasModelDelegate<TModel extends 'notification' | 'activityLog'>(model: TModel) {
+  const client = prisma as unknown as Record<string, unknown>
+  return Boolean(client[model])
+}
+
 export async function createNotification(input: {
   type: NotificationType
   title: string
@@ -18,6 +23,7 @@ export async function createNotification(input: {
   href?: string | null
   metadata?: Prisma.InputJsonValue | null
 }) {
+  if (!hasModelDelegate('notification')) return null
   return prisma.notification.create({
     data: {
       type: input.type,
@@ -38,6 +44,7 @@ export async function createActivityLog(input: {
   summary: string
   detail?: Prisma.InputJsonValue | null
 }) {
+  if (!hasModelDelegate('activityLog')) return null
   return prisma.activityLog.create({
     data: {
       level: input.level,
@@ -52,6 +59,9 @@ export async function createActivityLog(input: {
 }
 
 export async function getNotificationsData(limit = 40) {
+  if (!hasModelDelegate('notification')) {
+    return { unreadCount: 0, items: [] }
+  }
   try {
     const [items, unreadCount] = await Promise.all([
       prisma.notification.findMany({
@@ -86,6 +96,7 @@ export async function getNotificationsData(limit = 40) {
 }
 
 export async function markAllNotificationsAsRead() {
+  if (!hasModelDelegate('notification')) return
   try {
     await prisma.notification.updateMany({
       where: { read: false },
@@ -98,6 +109,9 @@ export async function markAllNotificationsAsRead() {
 }
 
 export async function getLogsData(limit = 50) {
+  if (!hasModelDelegate('activityLog')) {
+    return []
+  }
   try {
     const items = await prisma.activityLog.findMany({
       orderBy: { createdAt: 'desc' },

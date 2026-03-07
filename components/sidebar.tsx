@@ -18,6 +18,7 @@ import {
   BarChart3,
   Bell,
   Megaphone,
+  MessageSquare,
   Menu,
   X,
 } from 'lucide-react';
@@ -33,6 +34,7 @@ const navItems = [
   { label: 'Proyectos', href: '/projects', icon: Building2 },
   { label: 'Campanas', href: '/campaigns', icon: Megaphone },
   { label: 'Reportes', href: '/reports', icon: BarChart3 },
+  { label: 'Inbox social', href: '/inbox', icon: MessageSquare },
   { label: 'Notificaciones', href: '/notifications', icon: Bell },
   { label: 'Cuentas sociales', href: '/social-accounts', icon: Zap },
   { label: 'Registros', href: '/logs', icon: LogSquare },

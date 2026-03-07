@@ -22,6 +22,16 @@ interface MediaOption {
   fileName: string
 }
 
+interface PublishingReadiness {
+  projectId: string
+  mode: string
+  readyForFacebook: boolean
+  readyForInstagram: boolean
+  readyOverall: boolean
+  messageFacebook: string
+  messageInstagram: string
+}
+
 const aiSeedByTone: Record<string, string[]> = {
   profesional: [
     'Conoce un proyecto disenado para vivir con valor de inversion.',
@@ -69,6 +79,8 @@ export default function CreatePage() {
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [mediaOptions, setMediaOptions] = useState<MediaOption[]>([])
+  const [readiness, setReadiness] = useState<PublishingReadiness | null>(null)
+  const [readinessLoading, setReadinessLoading] = useState(false)
 
   const [formData, setFormData] = useState({
     projectId: '',
@@ -95,6 +107,8 @@ export default function CreatePage() {
   const [aiVariants, setAiVariants] = useState<string[]>([])
 
   const platforms = ['Instagram', 'Facebook', 'TikTok', 'YouTube Shorts', 'X', 'LinkedIn']
+  const hasFacebookSelected = formData.platforms.some((platform) => platform.toLowerCase() === 'facebook')
+  const hasInstagramSelected = formData.platforms.some((platform) => platform.toLowerCase() === 'instagram')
 
   useEffect(() => {
     let mounted = true
@@ -169,6 +183,38 @@ export default function CreatePage() {
     }
   }, [formData.projectId])
 
+  useEffect(() => {
+    let mounted = true
+
+    const loadReadiness = async () => {
+      if (!formData.projectId || (!hasFacebookSelected && !hasInstagramSelected)) {
+        if (mounted) setReadiness(null)
+        return
+      }
+
+      setReadinessLoading(true)
+      try {
+        const response = await fetch(`/api/publisher/run?projectId=${encodeURIComponent(formData.projectId)}`)
+        if (!response.ok) {
+          if (mounted) setReadiness(null)
+          return
+        }
+        const json = await response.json()
+        if (mounted) setReadiness(json.readiness ?? null)
+      } catch {
+        if (mounted) setReadiness(null)
+      } finally {
+        if (mounted) setReadinessLoading(false)
+      }
+    }
+
+    loadReadiness()
+
+    return () => {
+      mounted = false
+    }
+  }, [formData.projectId, hasFacebookSelected, hasInstagramSelected])
+
   const selectedProjectName = useMemo(
     () => projects.find((project) => project.id === formData.projectId)?.name ?? 'No definido',
     [projects, formData.projectId],
@@ -208,6 +254,8 @@ export default function CreatePage() {
   const canGoStep2 = formData.projectId && formData.platforms.length > 0 && formData.contentType
   const canGoStep3 = formData.title.trim() && formData.subtitle.trim() && formData.caption.trim()
   const canSubmit = formData.scheduledDate && formData.scheduledTime
+  const canPublishToFacebook = !hasFacebookSelected || readiness?.readyForFacebook !== false
+  const canPublishToInstagram = !hasInstagramSelected || readiness?.readyForInstagram !== false
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -540,7 +588,7 @@ export default function CreatePage() {
                 Siguiente
               </Button>
             ) : (
-              <Button onClick={handleSubmit} disabled={submitting || !canSubmit}>
+              <Button onClick={handleSubmit} disabled={submitting || !canSubmit || !canPublishToFacebook || !canPublishToInstagram}>
                 {submitting ? 'Guardando...' : 'Guardar programacion'}
               </Button>
             )}
@@ -561,6 +609,28 @@ export default function CreatePage() {
 
             <p className="text-xs text-muted-foreground">Plataformas</p>
             <p className="text-sm font-semibold">{formData.platforms.length > 0 ? formData.platforms.join(', ') : 'Ninguna'}</p>
+
+            {hasFacebookSelected ? (
+              <>
+                <p className="text-xs text-muted-foreground">Estado Facebook</p>
+                <p className={`text-sm font-semibold ${readiness?.readyForFacebook === false ? 'text-destructive' : 'text-foreground'}`}>
+                  {readinessLoading
+                    ? 'Validando...'
+                    : readiness?.messageFacebook ?? 'Conecta una cuenta Facebook y selecciona pagina.'}
+                </p>
+              </>
+            ) : null}
+
+            {hasInstagramSelected ? (
+              <>
+                <p className="text-xs text-muted-foreground">Estado Instagram</p>
+                <p className={`text-sm font-semibold ${readiness?.readyForInstagram === false ? 'text-destructive' : 'text-foreground'}`}>
+                  {readinessLoading
+                    ? 'Validando...'
+                    : readiness?.messageInstagram ?? 'Conecta una cuenta Instagram de negocio con OAuth.'}
+                </p>
+              </>
+            ) : null}
 
             <p className="text-xs text-muted-foreground">Programacion</p>
             <p className="text-sm font-semibold">{formData.scheduledDate ? `${formData.scheduledDate} ${formData.scheduledTime}` : 'No definida'}</p>
