@@ -20,8 +20,9 @@ export default withAuth(
         const pathname = req.nextUrl.pathname
         const isAuthRoute = pathname.startsWith('/api/auth')
         const isPublicRoute = PUBLIC_ROUTES.has(pathname)
+        const isPublicUpload = pathname.startsWith('/uploads/')
 
-        if (isAuthRoute || isPublicRoute) return true
+        if (isAuthRoute || isPublicRoute || isPublicUpload) return true
         return !!token
       },
     },
@@ -29,5 +30,5 @@ export default withAuth(
 )
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/).*)'],
 }
