@@ -19,6 +19,12 @@ async function ensurePrivilege() {
   return session?.user?.role === 'admin' || session?.user?.role === 'supervisor'
 }
 
+function getSocialAccountsRedirectUrl(request: NextRequest) {
+  const appUrl = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim() || ''
+  const baseUrl = appUrl || request.nextUrl.origin
+  return new URL('/social-accounts', baseUrl)
+}
+
 function serializeAccount(updated: Awaited<ReturnType<typeof finalizeMetaOAuth>>) {
   return {
     id: updated.id,
@@ -81,10 +87,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
   const state = request.nextUrl.searchParams.get('state') ?? ''
   const code = request.nextUrl.searchParams.get('code') ?? ''
   const errorReason = request.nextUrl.searchParams.get('error_description') || request.nextUrl.searchParams.get('error')
+  const redirectUrl = getSocialAccountsRedirectUrl(request)
 
   if (errorReason) {
     await failMetaOAuth(id, errorReason)
-    return NextResponse.redirect(new URL('/social-accounts', request.url))
+    return NextResponse.redirect(redirectUrl)
   }
 
   try {
@@ -97,5 +104,5 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     await failMetaOAuth(id, error instanceof Error ? error.message : 'No se pudo completar OAuth.')
   }
 
-  return NextResponse.redirect(new URL('/social-accounts', request.url))
+  return NextResponse.redirect(redirectUrl)
 }
