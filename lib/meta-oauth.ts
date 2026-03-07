@@ -21,6 +21,16 @@ type MetaPageIdentity = {
   instagramUserId: string | null
 }
 
+type MetaTokenDebug = {
+  appId: string | null
+  type: string | null
+  application: string | null
+  expiresAt: number | null
+  isValid: boolean
+  scopes: string[]
+  userId: string | null
+}
+
 function getRequiredEnv() {
   const appId = process.env.META_APP_ID?.trim() || ''
   const appSecret = process.env.META_APP_SECRET?.trim() || ''
@@ -141,12 +151,60 @@ async function exchangeCodeForMetaToken(code: string, redirectUri: string) {
       ? longLivedJson.expires_in
       : expiresIn
 
+  const permissionsUrl = new URL('https://graph.facebook.com/v19.0/me/permissions')
+  permissionsUrl.searchParams.set('access_token', effectiveAccessToken)
+
+  const permissionsResponse = await fetch(permissionsUrl.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  const permissionsJson = await permissionsResponse.json().catch(() => null)
+  const grantedScopes = Array.isArray(permissionsJson?.data)
+    ? permissionsJson.data
+        .filter((item: unknown): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+        .filter((item: Record<string, unknown>) => item.status === 'granted' && typeof item.permission === 'string')
+        .map((item: Record<string, unknown>) => item.permission as string)
+    : []
+
   return {
     accessToken: effectiveAccessToken,
     refreshToken: null,
     expiresAt: new Date(Date.now() + effectiveExpiresIn * 1000),
-    scopes: [] as string[],
+    scopes: grantedScopes,
     source: 'meta' as const,
+  }
+}
+
+async function debugMetaToken(userAccessToken: string): Promise<MetaTokenDebug | null> {
+  const env = getRequiredEnv()
+  if (!env.isLiveConfigured) return null
+
+  const normalizedToken = userAccessToken.trim()
+  if (!normalizedToken) return null
+
+  const url = new URL('https://graph.facebook.com/debug_token')
+  url.searchParams.set('input_token', normalizedToken)
+  url.searchParams.set('access_token', `${env.appId}|${env.appSecret}`)
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+
+  const json = await response.json().catch(() => null)
+  const data = json?.data as Record<string, unknown> | undefined
+  if (!response.ok || !data) return null
+
+  return {
+    appId: typeof data.app_id === 'string' ? data.app_id : null,
+    type: typeof data.type === 'string' ? data.type : null,
+    application: typeof data.application === 'string' ? data.application : null,
+    expiresAt: typeof data.expires_at === 'number' ? data.expires_at : null,
+    isValid: Boolean(data.is_valid),
+    scopes: Array.isArray(data.scopes) ? data.scopes.filter((item): item is string => typeof item === 'string') : [],
+    userId: typeof data.user_id === 'string' ? data.user_id : null,
   }
 }
 
@@ -319,8 +377,10 @@ export async function getMetaPagesForAccount(accountId: string) {
   }
 
   const pages = await fetchMetaPages(userAccessToken)
+  const debug = await debugMetaToken(userAccessToken)
   return {
     account,
+    debug,
     pages: pages.map((page: MetaPageIdentity) => ({
       pageId: page.pageId,
       pageName: page.pageName,

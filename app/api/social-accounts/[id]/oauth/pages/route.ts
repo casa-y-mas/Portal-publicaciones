@@ -29,6 +29,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         accountId: result.account.id,
         selectedPageId: result.account.pageId,
         selectedPageName: result.account.pageName,
+        debug: result.debug,
         pages: result.pages,
       },
     })
