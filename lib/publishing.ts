@@ -27,6 +27,11 @@ export interface PublishExecutionSummary {
   executedAt: string
 }
 
+interface ProcessScheduledPublicationsOptions {
+  limit?: number
+  targetPostId?: string
+}
+
 export interface ProjectPublishingReadiness {
   projectId: string
   mode: string
@@ -297,12 +302,29 @@ async function publishWithRetry(input: {
   )
 }
 
-export async function processScheduledPublications(limit = 10): Promise<PublishExecutionSummary> {
+export async function processScheduledPublications(
+  input: number | ProcessScheduledPublicationsOptions = 10,
+): Promise<PublishExecutionSummary> {
+  const options =
+    typeof input === 'number'
+      ? { limit: input }
+      : input
+  const limit = options.limit ?? 10
+  const targetPostId = options.targetPostId?.trim() || null
   const now = new Date()
   const duePosts = await prisma.scheduledPost.findMany({
     where: {
-      status: PostStatus.scheduled,
-      publishAt: { lte: now },
+      ...(targetPostId
+        ? {
+            id: targetPostId,
+            status: {
+              in: [PostStatus.scheduled, PostStatus.draft],
+            },
+          }
+        : {
+            status: PostStatus.scheduled,
+            publishAt: { lte: now },
+          }),
     },
     orderBy: { publishAt: 'asc' },
     take: limit,
@@ -496,7 +518,7 @@ export async function processScheduledPublications(limit = 10): Promise<PublishE
       }
     }
 
-    if (postFailed && !hadPermanentError && hadTransientError) {
+    if (postFailed && !hadPermanentError && hadTransientError && !targetPostId) {
       const retryAt = new Date(Date.now() + 5 * 60 * 1000)
       await prisma.scheduledPost.update({
         where: { id: post.id },

@@ -40,9 +40,13 @@ export async function POST(request: NextRequest) {
   }
 
   const limitRaw = request.nextUrl.searchParams.get('limit')
+  const postId = request.nextUrl.searchParams.get('postId')?.trim() || undefined
   const limit = limitRaw ? Number(limitRaw) : 20
   const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(Math.trunc(limit), 1), 100) : 20
 
-  const summary = await processScheduledPublications(safeLimit)
+  const summary = await processScheduledPublications({
+    limit: safeLimit,
+    targetPostId: postId,
+  })
   return NextResponse.json(summary)
 }

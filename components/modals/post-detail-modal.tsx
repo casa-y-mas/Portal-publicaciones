@@ -36,9 +36,11 @@ export interface PostDetail {
 interface PostDetailModalProps {
   post: PostDetail
   onClose: () => void
+  onPublishNow?: (postId: string) => Promise<void> | void
+  publishLoading?: boolean
 }
 
-export function PostDetailModal({ post, onClose }: PostDetailModalProps) {
+export function PostDetailModal({ post, onClose, onPublishNow, publishLoading = false }: PostDetailModalProps) {
   const publishDate = new Date(post.publishAt)
 
   return (
@@ -53,7 +55,9 @@ export function PostDetailModal({ post, onClose }: PostDetailModalProps) {
           <Button variant="outline" onClick={onClose}>
             Cerrar
           </Button>
-          <Button>Publicar manualmente</Button>
+          <Button onClick={() => onPublishNow?.(post.id)} disabled={!onPublishNow || publishLoading}>
+            {publishLoading ? 'Publicando...' : 'Publicar manualmente'}
+          </Button>
         </>
       }
     >
