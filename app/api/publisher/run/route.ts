@@ -1,9 +1,21 @@
-﻿import { getServerSession } from 'next-auth'
+import { getServerSession } from 'next-auth'
 import { headers } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { authOptions } from '@/lib/auth'
 import { getProjectPublishingReadiness, getPublishingQueueSnapshot, processScheduledPublications } from '@/lib/publishing'
+
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+function json(data: unknown, init?: { status?: number }) {
+  return NextResponse.json(data, {
+    status: init?.status,
+    headers: {
+      'Cache-Control': 'no-store, max-age=0',
+    },
+  })
+}
 
 async function isAuthorized() {
   const internalToken = process.env.PUBLISHER_RUN_TOKEN?.trim()
@@ -20,23 +32,23 @@ async function isAuthorized() {
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
-    return NextResponse.json({ message: 'No autorizado.' }, { status: 401 })
+    return json({ message: 'No autorizado.' }, { status: 401 })
   }
 
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim()
   if (projectId) {
     const readiness = await getProjectPublishingReadiness(projectId)
-    return NextResponse.json({ readiness })
+    return json({ readiness })
   }
 
   const snapshot = await getPublishingQueueSnapshot()
-  return NextResponse.json({ snapshot })
+  return json({ snapshot })
 }
 
 export async function POST(request: NextRequest) {
   const authorized = await isAuthorized()
   if (!authorized) {
-    return NextResponse.json({ message: 'No autorizado.' }, { status: 401 })
+    return json({ message: 'No autorizado.' }, { status: 401 })
   }
 
   try {
@@ -49,9 +61,9 @@ export async function POST(request: NextRequest) {
       limit: safeLimit,
       targetPostId: postId,
     })
-    return NextResponse.json(summary)
+    return json(summary)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error interno ejecutando el publicador.'
-    return NextResponse.json({ message }, { status: 500 })
+    return json({ message }, { status: 500 })
   }
 }
