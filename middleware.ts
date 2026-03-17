@@ -21,15 +21,17 @@ export default withAuth(
         const isAuthRoute = pathname.startsWith('/api/auth')
         const isPublicRoute = PUBLIC_ROUTES.has(pathname)
         const isPublicUpload = pathname.startsWith('/uploads/')
+        // /api/publisher/* sin sesion: la ruta API valida x-publisher-token y devuelve 401 JSON si falla
+        const isPublisherApi = pathname.startsWith('/api/publisher')
 
-        if (isAuthRoute || isPublicRoute || isPublicUpload) return true
+        if (isAuthRoute || isPublicRoute || isPublicUpload || isPublisherApi) return true
         return !!token
       },
     },
   },
 )
 
-// No aplicar auth a /api/publisher: la ruta API valida x-publisher-token
+// Excluir /api/publisher del middleware para que no pase por withAuth
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/|api/publisher).*)'],
 }
