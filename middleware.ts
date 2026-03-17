@@ -21,8 +21,13 @@ export default withAuth(
         const isAuthRoute = pathname.startsWith('/api/auth')
         const isPublicRoute = PUBLIC_ROUTES.has(pathname)
         const isPublicUpload = pathname.startsWith('/uploads/')
+        const isPublisherWithToken =
+          (pathname === '/api/publisher/run' || pathname.startsWith('/api/publisher/')) &&
+          typeof process.env.PUBLISHER_RUN_TOKEN === 'string' &&
+          process.env.PUBLISHER_RUN_TOKEN.length > 0 &&
+          req.headers.get('x-publisher-token') === process.env.PUBLISHER_RUN_TOKEN
 
-        if (isAuthRoute || isPublicRoute || isPublicUpload) return true
+        if (isAuthRoute || isPublicRoute || isPublicUpload || isPublisherWithToken) return true
         return !!token
       },
     },
