@@ -21,19 +21,15 @@ export default withAuth(
         const isAuthRoute = pathname.startsWith('/api/auth')
         const isPublicRoute = PUBLIC_ROUTES.has(pathname)
         const isPublicUpload = pathname.startsWith('/uploads/')
-        const isPublisherWithToken =
-          (pathname === '/api/publisher/run' || pathname.startsWith('/api/publisher/')) &&
-          typeof process.env.PUBLISHER_RUN_TOKEN === 'string' &&
-          process.env.PUBLISHER_RUN_TOKEN.length > 0 &&
-          req.headers.get('x-publisher-token') === process.env.PUBLISHER_RUN_TOKEN
 
-        if (isAuthRoute || isPublicRoute || isPublicUpload || isPublisherWithToken) return true
+        if (isAuthRoute || isPublicRoute || isPublicUpload) return true
         return !!token
       },
     },
   },
 )
 
+// No aplicar auth a /api/publisher: la ruta API valida x-publisher-token
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|uploads/|api/publisher).*)'],
 }
