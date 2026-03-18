@@ -1,4 +1,4 @@
-﻿import { PostStatus, Prisma } from '@prisma/client'
+import { PostStatus, Prisma } from '@prisma/client'
 import { getServerSession } from 'next-auth'
 import { NextResponse } from 'next/server'
 
@@ -72,6 +72,7 @@ function serializePost(item: {
   creator: { id: string; name: string }
   approver: { id: string; name: string } | null
   mediaAsset: { id: string; fileName: string } | null
+  mediaAssets?: { mediaAssetId: string; mediaAsset: { id: string; fileName: string } }[]
 }) {
   return {
     ...parseStoredCaption(item.caption),
@@ -86,6 +87,8 @@ function serializePost(item: {
     project: item.project.name,
     projectId: item.projectId,
     mediaAssetId: item.mediaAssetId,
+    mediaAssetIds: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAssetId) : [],
+    mediaAssets: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAsset) : [],
     thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
     recurrence: parseRecurrence(item.recurrenceJson),
   }
@@ -133,6 +136,10 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true } },
+      mediaAssets: {
+        orderBy: { sortOrder: 'asc' },
+        select: { mediaAssetId: true, mediaAsset: { select: { id: true, fileName: true } } },
+      },
     },
   })
 

@@ -88,7 +88,7 @@ export default function CreatePage() {
     contentType: 'post' as ContentTypeForm,
     title: '',
     subtitle: '',
-    mediaAssetId: '',
+    mediaAssetIds: [] as string[],
     caption: '',
     hashtags: '',
     scheduledDate: '',
@@ -148,7 +148,7 @@ export default function CreatePage() {
     const loadMedia = async () => {
       if (!formData.projectId) {
         setMediaOptions([])
-        setFormData((prev) => ({ ...prev, mediaAssetId: '' }))
+        setFormData((prev) => ({ ...prev, mediaAssetIds: [] }))
         return
       }
 
@@ -169,7 +169,9 @@ export default function CreatePage() {
         setMediaOptions(items)
         setFormData((prev) => ({
           ...prev,
-          mediaAssetId: items.some((item) => item.id === prev.mediaAssetId) ? prev.mediaAssetId : '',
+          mediaAssetIds: prev.mediaAssetIds.length > 0
+            ? prev.mediaAssetIds.filter((id) => items.some((item) => item.id === id))
+            : items.map((item) => item.id),
         }))
       } catch {
         if (mounted) setMediaOptions([])
@@ -273,7 +275,7 @@ export default function CreatePage() {
         if (publishAt.getTime() < Date.now()) {
           throw new Error('No puedes programar en una fecha pasada.')
         }
-        if (!formData.mediaAssetId) {
+        if (formData.mediaAssetIds.length === 0) {
           throw new Error('Para programar debes seleccionar un archivo multimedia.')
         }
         if (formData.platforms.length === 0) {
@@ -295,7 +297,8 @@ export default function CreatePage() {
           publishAt: publishAt.toISOString(),
           projectId: formData.projectId,
           platforms: formData.platforms,
-          mediaAssetId: formData.mediaAssetId || undefined,
+          mediaAssetId: formData.mediaAssetIds[0] || undefined,
+          mediaAssetIds: formData.mediaAssetIds,
           recurrence: recurrence.enabled ? recurrence : null,
         }),
       })
@@ -430,18 +433,55 @@ export default function CreatePage() {
 
               <div>
                 <label className="text-sm font-semibold block mb-2">Media de biblioteca (opcional)</label>
-                <select
-                  value={formData.mediaAssetId}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, mediaAssetId: e.target.value }))}
-                  className="w-full bg-muted border border-border rounded-lg px-3 py-2"
-                >
-                  <option value="">Sin media asociada</option>
-                  {mediaOptions.map((media) => (
-                    <option key={media.id} value={media.id}>
-                      {media.fileName}
-                    </option>
-                  ))}
-                </select>
+                <div className="space-y-3">
+                  {formData.mediaAssetIds.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">Sin media asociada</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.mediaAssetIds.map((id) => {
+                        const media = mediaOptions.find((item) => item.id === id)
+                        return (
+                          <div key={id} className="flex items-center gap-2 bg-muted border border-border rounded-lg px-3 py-2">
+                            <span className="text-xs font-semibold">{media?.fileName ?? 'Media'}</span>
+                            <button
+                              type="button"
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() =>
+                                setFormData((prev) => ({ ...prev, mediaAssetIds: prev.mediaAssetIds.filter((item) => item !== id) }))
+                              }
+                            >
+                              Quitar
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const value = e.target.value
+                      if (!value) return
+                      setFormData((prev) => ({
+                        ...prev,
+                        mediaAssetIds: prev.mediaAssetIds.includes(value) ? prev.mediaAssetIds : [...prev.mediaAssetIds, value],
+                      }))
+                    }}
+                    className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                  >
+                    <option value="">Agregar media del proyecto...</option>
+                    {mediaOptions
+                      .filter((media) => !formData.mediaAssetIds.includes(media.id))
+                      .map((media) => (
+                        <option key={media.id} value={media.id}>
+                          {media.fileName}
+                        </option>
+                      ))}
+                  </select>
+                  <div className="text-xs text-muted-foreground">
+                    Se carga automaticamente la multimedia del proyecto seleccionado. Puedes quitar o agregar archivos para esta publicacion.
+                  </div>
+                </div>
               </div>
 
               <div className="grid sm:grid-cols-2 gap-4">

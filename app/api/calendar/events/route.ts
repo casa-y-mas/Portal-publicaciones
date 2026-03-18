@@ -97,6 +97,10 @@ export async function GET(request: Request) {
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true } },
+      mediaAssets: {
+        orderBy: { sortOrder: 'asc' },
+        select: { mediaAssetId: true, mediaAsset: { select: { id: true, fileName: true } } },
+      },
     },
   })
 
@@ -119,6 +123,8 @@ export async function GET(request: Request) {
       project: item.project.name,
       projectId: item.projectId,
       mediaAssetId: item.mediaAssetId,
+      mediaAssetIds: item.mediaAssets.map((entry) => entry.mediaAssetId),
+      mediaAssets: item.mediaAssets.map((entry) => entry.mediaAsset),
       thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
       recurrence: parseRecurrence(item.recurrenceJson),
     })),

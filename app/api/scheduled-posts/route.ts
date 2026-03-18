@@ -20,6 +20,7 @@ const createScheduledPostSchema = z.object({
   recurrence: z.record(z.string(), z.unknown()).nullable().optional(),
   thumbnail: z.string().trim().optional().or(z.literal('')),
   mediaAssetId: z.string().trim().optional().or(z.literal('')),
+  mediaAssetIds: z.array(z.string().trim().min(1)).optional(),
 })
 
 type RecurrenceInfo = {
@@ -93,6 +94,10 @@ export async function GET() {
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true } },
+      mediaAssets: {
+        orderBy: { sortOrder: 'asc' },
+        select: { mediaAssetId: true, mediaAsset: { select: { id: true, fileName: true } } },
+      },
     },
   })
 
@@ -110,6 +115,8 @@ export async function GET() {
       project: item.project.name,
       projectId: item.projectId,
       mediaAssetId: item.mediaAssetId,
+      mediaAssetIds: item.mediaAssets.map((entry) => entry.mediaAssetId),
+      mediaAssets: item.mediaAssets.map((entry) => entry.mediaAsset),
       thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
       recurrence: parseRecurrence(item.recurrenceJson),
     })),
@@ -136,7 +143,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
   }
 
-  const mediaAssetId = parsed.data.mediaAssetId || null
+  const incomingMediaAssetIds = Array.isArray(parsed.data.mediaAssetIds) ? parsed.data.mediaAssetIds.filter(Boolean) : []
+  const mediaAssetIdFromLegacy = parsed.data.mediaAssetId || ''
+  const mediaAssetIds = Array.from(new Set([mediaAssetIdFromLegacy, ...incomingMediaAssetIds].filter(Boolean)))
+  const mediaAssetId = mediaAssetIds[0] || null
   const publishAt = new Date(parsed.data.publishAt)
 
   if (Number.isNaN(publishAt.getTime())) {
@@ -218,15 +228,16 @@ export async function POST(request: Request) {
     }
   }
 
-  if (mediaAssetId) {
-    const media = await prisma.mediaAsset.findUnique({
-      where: { id: mediaAssetId },
+  if (mediaAssetIds.length > 0) {
+    const media = await prisma.mediaAsset.findMany({
+      where: { id: { in: mediaAssetIds } },
       select: { id: true, projectId: true },
     })
-    if (!media) {
-      return NextResponse.json({ message: 'Media no encontrada.' }, { status: 404 })
+    if (media.length !== mediaAssetIds.length) {
+      return NextResponse.json({ message: 'Una o mas medias no fueron encontradas.' }, { status: 404 })
     }
-    if (media.projectId !== parsed.data.projectId) {
+    const wrongProject = media.find((item) => item.projectId !== parsed.data.projectId)
+    if (wrongProject) {
       return NextResponse.json({ message: 'La media debe pertenecer al mismo proyecto.' }, { status: 400 })
     }
   }
@@ -246,6 +257,14 @@ export async function POST(request: Request) {
       recurrenceJson: parsed.data.recurrence
         ? (parsed.data.recurrence as Prisma.InputJsonValue)
         : Prisma.JsonNull,
+      mediaAssets: mediaAssetIds.length > 0
+        ? {
+            createMany: {
+              data: mediaAssetIds.map((id, index) => ({ mediaAssetId: id, sortOrder: index })),
+              skipDuplicates: true,
+            },
+          }
+        : undefined,
     },
   })
 
@@ -256,6 +275,10 @@ export async function POST(request: Request) {
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true } },
+      mediaAssets: {
+        orderBy: { sortOrder: 'asc' },
+        select: { mediaAssetId: true, mediaAsset: { select: { id: true, fileName: true } } },
+      },
     },
   })
 
@@ -278,6 +301,8 @@ export async function POST(request: Request) {
         project: createdWithRelations.project.name,
         projectId: createdWithRelations.projectId,
         mediaAssetId: createdWithRelations.mediaAssetId,
+        mediaAssetIds: createdWithRelations.mediaAssets.map((entry) => entry.mediaAssetId),
+        mediaAssets: createdWithRelations.mediaAssets.map((entry) => entry.mediaAsset),
         thumbnail: createdWithRelations.thumbnail ?? createdWithRelations.mediaAsset?.fileName ?? null,
         recurrence: parseRecurrence(createdWithRelations.recurrenceJson),
       },

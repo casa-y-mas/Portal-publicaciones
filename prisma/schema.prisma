@@ -200,6 +200,7 @@ model ScheduledPost {
   creator        User        @relation("PostCreator", fields: [creatorId], references: [id], onDelete: Restrict)
   approver       User?       @relation("PostApprover", fields: [approverId], references: [id], onDelete: SetNull)
   mediaAsset     MediaAsset? @relation(fields: [mediaAssetId], references: [id], onDelete: SetNull)
+  mediaAssets    ScheduledPostMedia[]
 
   @@index([projectId])
   @@index([creatorId])
@@ -207,6 +208,20 @@ model ScheduledPost {
   @@index([mediaAssetId])
   @@index([status])
   @@index([publishAt])
+}
+
+model ScheduledPostMedia {
+  id           String        @id @default(cuid())
+  postId       String
+  mediaAssetId String
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  post         ScheduledPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaAsset   MediaAsset    @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, mediaAssetId])
+  @@index([postId])
+  @@index([mediaAssetId])
 }
 
 model MediaAsset {
@@ -224,6 +239,7 @@ model MediaAsset {
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   uploadedBy     User?           @relation("AssetUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
   scheduledPosts ScheduledPost[]
+  scheduledPostMedia ScheduledPostMedia[]
 
   @@index([projectId])
   @@index([uploadedById])
