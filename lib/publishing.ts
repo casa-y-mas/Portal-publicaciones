@@ -4,6 +4,7 @@ import { createActivityLog, createNotification } from '@/lib/operations-feed'
 import { prisma } from '@/lib/prisma'
 
 type PlatformName = 'instagram' | 'facebook'
+const SUBTITLE_MARKER = '[SUBTITULO]'
 
 export interface PublishExecutionItem {
   postId: string
@@ -83,6 +84,38 @@ function isTransientMetaError(detail: string) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function parseStoredCaption(rawCaption: string): { subtitle: string | null; caption: string } {
+  if (!rawCaption.startsWith(SUBTITLE_MARKER)) {
+    return { subtitle: null, caption: rawCaption }
+  }
+
+  const firstBreak = rawCaption.indexOf('\n')
+  if (firstBreak === -1) {
+    const subtitleOnly = rawCaption.slice(SUBTITLE_MARKER.length).trim()
+    return { subtitle: subtitleOnly || null, caption: '' }
+  }
+
+  const header = rawCaption.slice(0, firstBreak).trim()
+  const subtitle = header.slice(SUBTITLE_MARKER.length).trim()
+  const caption = rawCaption.slice(firstBreak).trim()
+  return { subtitle: subtitle || null, caption }
+}
+
+function composePublishCaption(input: { title: string; subtitle: string | null; caption: string }) {
+  const title = input.title.trim()
+  const subtitle = (input.subtitle ?? '').trim()
+  const caption = input.caption.trim()
+
+  const lines: string[] = []
+  if (title) lines.push(title)
+  if (subtitle) lines.push(subtitle)
+  if (caption) {
+    if (lines.length > 0) lines.push('')
+    lines.push(caption)
+  }
+  return lines.join('\n')
 }
 
 async function publishToMetaPlatform(input: {
@@ -268,6 +301,135 @@ async function publishToMetaPlatform(input: {
   }
 }
 
+async function publishFacebookCarousel(input: {
+  pageId: string
+  accessToken: string
+  caption: string
+  mediaUrls: string[]
+}) {
+  const uploadedMediaIds: string[] = []
+
+  for (const mediaUrl of input.mediaUrls) {
+    const uploadEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
+    const body = new URLSearchParams()
+    body.set('access_token', input.accessToken)
+    body.set('published', 'false')
+    body.set('url', mediaUrl)
+
+    const response = await fetch(uploadEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      cache: 'no-store',
+    })
+    const json = await response.json().catch(() => null)
+    if (!response.ok || !json?.id) {
+      const apiMessage = json?.error?.message ?? 'No se pudo subir una imagen para carrusel.'
+      return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
+    }
+    uploadedMediaIds.push(json.id as string)
+  }
+
+  const feedEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/feed`
+  const feedBody = new URLSearchParams()
+  feedBody.set('access_token', input.accessToken)
+  feedBody.set('message', input.caption)
+  uploadedMediaIds.forEach((id, index) => {
+    feedBody.set(`attached_media[${index}]`, JSON.stringify({ media_fbid: id }))
+  })
+
+  const feedResponse = await fetch(feedEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: feedBody,
+    cache: 'no-store',
+  })
+  const feedJson = await feedResponse.json().catch(() => null)
+  if (!feedResponse.ok) {
+    const apiMessage = feedJson?.error?.message ?? 'No se pudo publicar el carrusel en Facebook.'
+    return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
+  }
+
+  return {
+    ok: true,
+    detail: `Carrusel publicado en Facebook Page ${input.pageId}.`,
+    externalId: (feedJson?.id as string | undefined) ?? null,
+  }
+}
+
+async function publishInstagramCarousel(input: {
+  instagramUserId: string
+  accessToken: string
+  caption: string
+  mediaUrls: string[]
+}) {
+  const childrenIds: string[] = []
+
+  for (const mediaUrl of input.mediaUrls) {
+    const containerEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.instagramUserId)}/media`
+    const body = new URLSearchParams()
+    body.set('access_token', input.accessToken)
+    body.set('image_url', mediaUrl)
+    body.set('is_carousel_item', 'true')
+
+    const response = await fetch(containerEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      cache: 'no-store',
+    })
+    const json = await response.json().catch(() => null)
+    if (!response.ok || !json?.id) {
+      const apiMessage = json?.error?.message ?? 'No se pudo crear un item de carrusel en Instagram.'
+      return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
+    }
+    childrenIds.push(json.id as string)
+  }
+
+  const carouselContainerEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.instagramUserId)}/media`
+  const carouselBody = new URLSearchParams()
+  carouselBody.set('access_token', input.accessToken)
+  carouselBody.set('media_type', 'CAROUSEL')
+  carouselBody.set('caption', input.caption)
+  carouselBody.set('children', childrenIds.join(','))
+
+  const createCarouselResponse = await fetch(carouselContainerEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: carouselBody,
+    cache: 'no-store',
+  })
+  const createCarouselJson = await createCarouselResponse.json().catch(() => null)
+  if (!createCarouselResponse.ok || !createCarouselJson?.id) {
+    const apiMessage = createCarouselJson?.error?.message ?? 'No se pudo crear el contenedor de carrusel.'
+    return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
+  }
+  const creationId = createCarouselJson.id as string
+
+  const publishEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.instagramUserId)}/media_publish`
+  const publishBody = new URLSearchParams()
+  publishBody.set('access_token', input.accessToken)
+  publishBody.set('creation_id', creationId)
+
+  const publishResponse = await fetch(publishEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: publishBody,
+    cache: 'no-store',
+  })
+  const publishJson = await publishResponse.json().catch(() => null)
+  if (!publishResponse.ok) {
+    const apiMessage = publishJson?.error?.message ?? 'No se pudo publicar el carrusel en Instagram.'
+    return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
+  }
+
+  return {
+    ok: true,
+    detail: `Carrusel publicado en Instagram Business ${input.instagramUserId}.`,
+    externalId: (publishJson?.id as string | undefined) ?? creationId,
+  }
+}
+
 async function publishWithRetry(input: {
   platform: PlatformName
   contentType: 'post' | 'reel' | 'story' | 'carousel'
@@ -337,6 +499,19 @@ export async function processScheduledPublications(
           type: true,
         },
       },
+      mediaAssets: {
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          mediaAsset: {
+            select: {
+              id: true,
+              url: true,
+              fileName: true,
+              type: true,
+            },
+          },
+        },
+      },
       project: {
         select: {
           id: true,
@@ -365,6 +540,17 @@ export async function processScheduledPublications(
 
   for (const post of duePosts) {
     const platforms = parsePlatforms(post.platformsJson)
+    const parsedCaption = parseStoredCaption(post.caption)
+    const publishCaption = composePublishCaption({
+      title: post.title,
+      subtitle: parsedCaption.subtitle,
+      caption: parsedCaption.caption,
+    })
+
+    const orderedAssets = post.mediaAssets.map((entry) => entry.mediaAsset).filter((asset) => Boolean(asset?.url))
+    const mediaCandidates = orderedAssets.length > 0 ? orderedAssets : (post.mediaAsset?.url ? [post.mediaAsset] : [])
+    const imageUrls = mediaCandidates.filter((asset) => asset.type === 'image').map((asset) => asset.url)
+    const primary = mediaCandidates[0]
 
     if (platforms.length === 0) {
       await prisma.scheduledPost.update({
@@ -400,7 +586,7 @@ export async function processScheduledPublications(
       continue
     }
 
-    if (!post.mediaAsset?.url) {
+    if (!primary?.url) {
       await prisma.scheduledPost.update({
         where: { id: post.id },
         data: { status: PostStatus.failed },
@@ -476,17 +662,32 @@ export async function processScheduledPublications(
         continue
       }
 
-      const publishedResult = await publishWithRetry({
-        platform,
-        contentType: post.contentType,
-        caption: post.caption,
-        mediaUrl: post.mediaAsset.url,
-        mediaType: post.mediaAsset.type,
-        instagramUserId: account.instagramUserId,
-        pageId: account.pageId,
-        accessToken: account.accessToken,
-        accountUsername: account.username,
-      })
+      const shouldCarousel = imageUrls.length >= 2 && (post.contentType === 'carousel' || post.contentType === 'post')
+      const publishedResult = shouldCarousel
+        ? platform === 'facebook'
+          ? await publishFacebookCarousel({
+              pageId: account.pageId || '',
+              accessToken: account.accessToken,
+              caption: publishCaption,
+              mediaUrls: imageUrls,
+            })
+          : await publishInstagramCarousel({
+              instagramUserId: account.instagramUserId || '',
+              accessToken: account.accessToken,
+              caption: publishCaption,
+              mediaUrls: imageUrls,
+            })
+        : await publishWithRetry({
+            platform,
+            contentType: post.contentType,
+            caption: publishCaption,
+            mediaUrl: primary.url,
+            mediaType: primary.type,
+            instagramUserId: account.instagramUserId,
+            pageId: account.pageId,
+            accessToken: account.accessToken,
+            accountUsername: account.username,
+          })
 
       platformResults.push({
         platform: platformLabel,

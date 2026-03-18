@@ -392,21 +392,39 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
       {selectedPost ? (
         <PostDetailModal
           post={selectedPost}
-          onClose={() => setSelectedPost(null)}
+          onClose={() => {
+            setSelectedPost(null)
+            setError(null)
+            setSuccess(null)
+          }}
           onPublishNow={publishNow}
           publishLoading={publishingId === selectedPost.id}
+          error={error}
+          success={success}
         />
       ) : null}
       {editingPost ? (
         <AppModal
           open
           onOpenChange={(open) => {
-            if (!open) setEditingPost(null)
+            if (!open) {
+              setEditingPost(null)
+              setError(null)
+              setSuccess(null)
+            }
           }}
           title="Editar publicacion"
           footer={(
             <>
-              <Button variant="outline" onClick={() => setEditingPost(null)} disabled={savingEdit}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingPost(null)
+                  setError(null)
+                  setSuccess(null)
+                }}
+                disabled={savingEdit}
+              >
                 Cancelar
               </Button>
               <Button onClick={saveEdit} disabled={savingEdit}>
@@ -416,6 +434,9 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
           )}
         >
           <div className="space-y-4">
+            {error ? <p className="text-sm text-destructive surface-muted p-3 rounded-lg">{error}</p> : null}
+            {success ? <p className="text-sm text-primary surface-muted p-3 rounded-lg">{success}</p> : null}
+
             <div>
               <label className="text-sm font-semibold block mb-2">Titulo</label>
               <Input value={editForm.title} onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))} />

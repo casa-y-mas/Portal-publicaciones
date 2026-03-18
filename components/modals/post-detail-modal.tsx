@@ -38,9 +38,18 @@ interface PostDetailModalProps {
   onClose: () => void
   onPublishNow?: (postId: string) => Promise<void> | void
   publishLoading?: boolean
+  error?: string | null
+  success?: string | null
 }
 
-export function PostDetailModal({ post, onClose, onPublishNow, publishLoading = false }: PostDetailModalProps) {
+export function PostDetailModal({
+  post,
+  onClose,
+  onPublishNow,
+  publishLoading = false,
+  error = null,
+  success = null,
+}: PostDetailModalProps) {
   const publishDate = new Date(post.publishAt)
 
   return (
@@ -62,6 +71,9 @@ export function PostDetailModal({ post, onClose, onPublishNow, publishLoading = 
       }
     >
       <div className="space-y-6">
+        {error ? <p className="text-sm text-destructive surface-muted p-3 rounded-lg">{error}</p> : null}
+        {success ? <p className="text-sm text-primary surface-muted p-3 rounded-lg">{success}</p> : null}
+
         <div>
           <h3 className="text-2xl font-bold mb-3">{post.title}</h3>
           {post.subtitle ? <p className="text-sm text-muted-foreground mb-3">{post.subtitle}</p> : null}
