@@ -122,7 +122,7 @@ async function safeUpdateScheduledPostPublishError(input: {
   postId: string
   status: PostStatus
   lastPublishError?: string | null
-  lastPublishDetails?: Prisma.InputJsonValue | null
+  lastPublishDetails?: Prisma.InputJsonValue
 }) {
   try {
     return await prisma.scheduledPost.update({
@@ -131,7 +131,7 @@ async function safeUpdateScheduledPostPublishError(input: {
         status: input.status,
         ...(input.lastPublishError !== undefined ? { lastPublishError: input.lastPublishError } : {}),
         ...(input.lastPublishDetails !== undefined ? { lastPublishDetails: input.lastPublishDetails } : {}),
-      },
+      } as any,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -338,36 +338,21 @@ async function publishFacebookCarousel(input: {
   caption: string
   mediaUrls: string[]
 }) {
-  const uploadedMediaIds: string[] = []
+  // Carrusel via `child_attachments` (no requiere subir fotos primero).
+  // Esto suele ser más estable que `attached_media` para multi-imagen.
+  const appUrl = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim() || ''
+  const safeLink = appUrl || input.mediaUrls[0]
 
-  for (const mediaUrl of input.mediaUrls) {
-    const uploadEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
-    const body = new URLSearchParams()
-    body.set('access_token', input.accessToken)
-    body.set('published', 'false')
-    body.set('url', mediaUrl)
-
-    const response = await fetch(uploadEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-      cache: 'no-store',
-    })
-    const json = await response.json().catch(() => null)
-    if (!response.ok || !json?.id) {
-      const apiMessage = json?.error?.message ?? 'No se pudo subir una imagen para carrusel.'
-      return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
-    }
-    uploadedMediaIds.push(json.id as string)
-  }
+  const childAttachments = input.mediaUrls.map((pictureUrl) => ({
+    picture: pictureUrl,
+    link: safeLink,
+  }))
 
   const feedEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/feed`
   const feedBody = new URLSearchParams()
   feedBody.set('access_token', input.accessToken)
   feedBody.set('message', input.caption)
-  uploadedMediaIds.forEach((id, index) => {
-    feedBody.set(`attached_media[${index}]`, JSON.stringify({ media_fbid: id }))
-  })
+  feedBody.set('child_attachments', JSON.stringify(childAttachments))
 
   const feedResponse = await fetch(feedEndpoint, {
     method: 'POST',
@@ -375,6 +360,7 @@ async function publishFacebookCarousel(input: {
     body: feedBody,
     cache: 'no-store',
   })
+
   const feedJson = await feedResponse.json().catch(() => null)
   if (!feedResponse.ok) {
     const apiMessage = feedJson?.error?.message ?? 'No se pudo publicar el carrusel en Facebook.'
@@ -589,7 +575,6 @@ export async function processScheduledPublications(
         postId: post.id,
         status: PostStatus.failed,
         lastPublishError: 'Sin redes configuradas.',
-        lastPublishDetails: Prisma.JsonNull,
       })
       await Promise.all([
         createActivityLog({
@@ -625,7 +610,6 @@ export async function processScheduledPublications(
         postId: post.id,
         status: PostStatus.failed,
         lastPublishError: 'Sin archivo multimedia disponible.',
-        lastPublishDetails: Prisma.JsonNull,
       })
       await Promise.all([
         createActivityLog({
@@ -700,9 +684,57 @@ export async function processScheduledPublications(
       }
 
       const shouldCarousel = imageUrls.length >= 2 && post.contentType !== 'story'
-      const publishedResult = (() => {
-        if (!shouldCarousel) {
-          return publishWithRetry({
+      let publishedResult: Awaited<ReturnType<typeof publishToMetaPlatform>>
+
+      if (!shouldCarousel) {
+        publishedResult = await publishWithRetry({
+          platform,
+          contentType: post.contentType,
+          caption: publishCaption,
+          mediaUrl: primary.url,
+          mediaType: primary.type,
+          instagramUserId: account.instagramUserId,
+          pageId: account.pageId,
+          accessToken: account.accessToken,
+          accountUsername: account.username,
+        })
+      } else if (platform === 'facebook') {
+        try {
+          const carouselResult = await publishFacebookCarousel({
+            pageId: account.pageId || '',
+            accessToken: account.accessToken,
+            caption: publishCaption,
+            mediaUrls: imageUrls,
+          })
+
+          if (carouselResult.ok) {
+            publishedResult = carouselResult
+          } else {
+            lastCarouselErrorDetail = carouselResult.detail
+
+            // Fallback: si falla carrusel, intenta enviar un solo post con la imagen principal.
+            const fallback = await publishWithRetry({
+              platform,
+              contentType: post.contentType,
+              caption: publishCaption,
+              mediaUrl: primary.url,
+              mediaType: primary.type,
+              instagramUserId: account.instagramUserId,
+              pageId: account.pageId,
+              accessToken: account.accessToken,
+              accountUsername: account.username,
+            })
+
+            publishedResult = fallback.ok
+              ? {
+                  ...fallback,
+                  detail: `${fallback.detail} (Carrusel fallback: ${carouselResult.detail})`,
+                }
+              : fallback
+          }
+        } catch (err) {
+          lastCarouselErrorDetail = err instanceof Error ? err.message : String(err)
+          publishedResult = await publishWithRetry({
             platform,
             contentType: post.contentType,
             caption: publishCaption,
@@ -714,70 +746,20 @@ export async function processScheduledPublications(
             accountUsername: account.username,
           })
         }
+      } else {
+        try {
+          const carouselResult = await publishInstagramCarousel({
+            instagramUserId: account.instagramUserId || '',
+            accessToken: account.accessToken,
+            caption: publishCaption,
+            mediaUrls: imageUrls,
+          })
 
-        if (platform === 'facebook') {
-          return (async () => {
-            try {
-              const carouselResult = await publishFacebookCarousel({
-                pageId: account.pageId || '',
-                accessToken: account.accessToken,
-                caption: publishCaption,
-                mediaUrls: imageUrls,
-              })
-
-              if (carouselResult.ok) return carouselResult
-
-              lastCarouselErrorDetail = carouselResult.detail
-              // Fallback: si falla carrusel, intenta enviar un solo post con la imagen principal.
-              const fallback = await publishWithRetry({
-                platform,
-                contentType: post.contentType,
-                caption: publishCaption,
-                mediaUrl: primary.url,
-                mediaType: primary.type,
-                instagramUserId: account.instagramUserId,
-                pageId: account.pageId,
-                accessToken: account.accessToken,
-                accountUsername: account.username,
-              })
-
-              if (fallback.ok) {
-                return {
-                  ...fallback,
-                  detail: `${fallback.detail} (Carrusel fallback: ${carouselResult.detail})`,
-                }
-              }
-
-              return fallback
-            } catch (err) {
-              lastCarouselErrorDetail = err instanceof Error ? err.message : String(err)
-              return publishWithRetry({
-                platform,
-                contentType: post.contentType,
-                caption: publishCaption,
-                mediaUrl: primary.url,
-                mediaType: primary.type,
-                instagramUserId: account.instagramUserId,
-                pageId: account.pageId,
-                accessToken: account.accessToken,
-                accountUsername: account.username,
-              })
-            }
-          })()
-        }
-
-        return (async () => {
-          try {
-            const carouselResult = await publishInstagramCarousel({
-              instagramUserId: account.instagramUserId || '',
-              accessToken: account.accessToken,
-              caption: publishCaption,
-              mediaUrls: imageUrls,
-            })
-
-            if (carouselResult.ok) return carouselResult
-
+          if (carouselResult.ok) {
+            publishedResult = carouselResult
+          } else {
             lastCarouselErrorDetail = carouselResult.detail
+
             // Fallback: enviar una sola imagen si falla carrusel.
             const fallback = await publishWithRetry({
               platform,
@@ -791,30 +773,28 @@ export async function processScheduledPublications(
               accountUsername: account.username,
             })
 
-            if (fallback.ok) {
-              return {
-                ...fallback,
-                detail: `${fallback.detail} (Carrusel fallback: ${carouselResult.detail})`,
-              }
-            }
-
-            return fallback
-          } catch (err) {
-            lastCarouselErrorDetail = err instanceof Error ? err.message : String(err)
-            return publishWithRetry({
-              platform,
-              contentType: post.contentType,
-              caption: publishCaption,
-              mediaUrl: primary.url,
-              mediaType: primary.type,
-              instagramUserId: account.instagramUserId,
-              pageId: account.pageId,
-              accessToken: account.accessToken,
-              accountUsername: account.username,
-            })
+            publishedResult = fallback.ok
+              ? {
+                  ...fallback,
+                  detail: `${fallback.detail} (Carrusel fallback: ${carouselResult.detail})`,
+                }
+              : fallback
           }
-        })()
-      })()
+        } catch (err) {
+          lastCarouselErrorDetail = err instanceof Error ? err.message : String(err)
+          publishedResult = await publishWithRetry({
+            platform,
+            contentType: post.contentType,
+            caption: publishCaption,
+            mediaUrl: primary.url,
+            mediaType: primary.type,
+            instagramUserId: account.instagramUserId,
+            pageId: account.pageId,
+            accessToken: account.accessToken,
+            accountUsername: account.username,
+          })
+        }
+      }
 
       platformResults.push({
         platform: platformLabel,
@@ -899,7 +879,7 @@ export async function processScheduledPublications(
       postId: post.id,
       status: finalStatus,
       lastPublishError: failureMessage,
-      lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
+        lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
     })
 
     if (finalStatus === PostStatus.failed) {
