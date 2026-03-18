@@ -887,13 +887,14 @@ export async function processScheduledPublications(
       continue
     }
 
-    const finalStatus = postFailed ? PostStatus.failed : PostStatus.published
+    const hadAnySuccess = platformResults.some((entry) => Boolean(entry.ok))
+    const finalStatus = hadAnySuccess ? PostStatus.published : PostStatus.failed
 
     const failureLines = platformResults
       .filter((entry) => !entry.ok)
-      .map((entry) => `${entry.platform}: ${entry.detail}`)
+      .map((entry) => `${entry.platform}: ${entry.detail ?? 'Sin detalle'}`)
       .slice(0, 10)
-    const failureMessage = postFailed ? failureLines.join('\n') || lastCarouselErrorDetail || 'Error de publicacion.' : null
+    const failureMessage = finalStatus === PostStatus.failed ? failureLines.join('\n') || lastCarouselErrorDetail || 'Error de publicacion.' : null
     await safeUpdateScheduledPostPublishError({
       postId: post.id,
       status: finalStatus,
@@ -901,7 +902,7 @@ export async function processScheduledPublications(
       lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
     })
 
-    if (postFailed) {
+    if (finalStatus === PostStatus.failed) {
       await Promise.all([
         createActivityLog({
           level: 'error',
