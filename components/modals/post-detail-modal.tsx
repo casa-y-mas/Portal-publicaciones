@@ -6,6 +6,13 @@ import { AppModal } from '@/components/base/app-modal'
 import { StatusBadge } from '@/components/base/status-badge'
 import { RecurrenceBadge } from '@/components/recurrence-badge'
 import { Button } from '@/components/ui/button'
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from '@/components/ui/carousel'
 
 export interface PostDetail {
   id: string
@@ -19,6 +26,12 @@ export interface PostDetail {
   project: string
   mediaAssetId?: string | null
   publishError?: string | null
+  mediaAssets?: Array<{
+    id?: string
+    fileName: string
+    url?: string | null
+    type?: string
+  }>
   publishAt: string
   creator: string
   approver: string | null
@@ -53,6 +66,21 @@ export function PostDetailModal({
 }: PostDetailModalProps) {
   const publishDate = new Date(post.publishAt)
   const shouldShowPublishError = Boolean((post.status || '').toLowerCase().includes('failed')) && Boolean(post.publishError)
+  const previewCaptionParts: string[] = []
+  const title = post.title?.trim()
+  const subtitle = post.subtitle?.trim() ?? ''
+  const caption = post.caption?.trim()
+
+  if (title) previewCaptionParts.push(title)
+  if (subtitle) previewCaptionParts.push(subtitle)
+  if (caption) {
+    if (previewCaptionParts.length > 0) previewCaptionParts.push('')
+    previewCaptionParts.push(caption)
+  }
+  const previewCaption = previewCaptionParts.join('\n')
+
+  const mediaAssets = post.mediaAssets ?? []
+  const imageAssets = mediaAssets.filter((m) => Boolean(m.url)).slice(0, 10)
 
   return (
     <AppModal
@@ -77,8 +105,6 @@ export function PostDetailModal({
         {success ? <p className="text-sm text-primary surface-muted p-3 rounded-lg">{success}</p> : null}
 
         <div>
-          <h3 className="text-2xl font-bold mb-3">{post.title}</h3>
-          {post.subtitle ? <p className="text-sm text-muted-foreground mb-3">{post.subtitle}</p> : null}
           <StatusBadge status={post.status} />
 
           {shouldShowPublishError ? (
@@ -89,14 +115,49 @@ export function PostDetailModal({
           ) : null}
         </div>
 
-        <div className="bg-muted rounded-lg p-6 text-center">
-          <span className="text-2xl mb-2 block">{post.thumbnail ?? 'Sin vista previa'}</span>
-          <p className="text-sm text-muted-foreground">Vista previa</p>
-        </div>
+        <div className="bg-muted rounded-lg overflow-hidden">
+          <div className="bg-background">
+            {imageAssets.length > 0 ? (
+              <div className="w-full bg-muted">
+                {imageAssets.length === 1 ? (
+                  <div className="aspect-[4/3] w-full">
+                    <img
+                      src={imageAssets[0]?.url ?? ''}
+                      alt={imageAssets[0]?.fileName ?? 'media'}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <Carousel opts={{ loop: true }}>
+                    <CarouselContent>
+                      {imageAssets.map((m) => (
+                        <CarouselItem key={m.id ?? m.fileName}>
+                          <div className="aspect-[4/3] w-full">
+                            <img
+                              src={m.url ?? ''}
+                              alt={m.fileName ?? 'media'}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        </CarouselItem>
+                      ))}
+                    </CarouselContent>
+                    <CarouselPrevious />
+                    <CarouselNext />
+                  </Carousel>
+                )}
+              </div>
+            ) : (
+              <div className="p-6 text-center">
+                <span className="text-lg mb-2 block">{post.thumbnail ?? 'Sin vista previa'}</span>
+                <p className="text-sm text-muted-foreground">Vista previa</p>
+              </div>
+            )}
+          </div>
 
-        <div>
-          <label className="text-sm font-semibold text-foreground mb-2 block">Texto</label>
-          <p className="text-muted-foreground bg-muted p-4 rounded-lg">{post.caption}</p>
+          <div className="p-4">
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{previewCaption}</p>
+          </div>
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">

@@ -96,10 +96,10 @@ export async function GET(request: Request) {
       project: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
-      mediaAsset: { select: { id: true, fileName: true } },
+      mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },
       mediaAssets: {
         orderBy: { sortOrder: 'asc' },
-        select: { mediaAssetId: true, mediaAsset: { select: { id: true, fileName: true } } },
+        select: { mediaAssetId: true, mediaAsset: { select: { id: true, fileName: true, url: true, type: true } } },
       },
     },
   })
