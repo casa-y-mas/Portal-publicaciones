@@ -828,17 +828,18 @@ export async function processScheduledPublications(
         } else {
           hadPermanentError = true
         }
+        const detailText = publishedResult.detail ?? ''
         if (
-          publishedResult.detail.includes('OAuth') ||
-          publishedResult.detail.includes('token') ||
-          publishedResult.detail.includes('Error validating access token')
+          detailText.includes('OAuth') ||
+          detailText.includes('token') ||
+          detailText.includes('Error validating access token')
         ) {
           await prisma.socialAccount.update({
             where: { id: account.id },
             data: {
               status: AccountStatus.token_expiring,
               tokenLastChecked: new Date(),
-              lastError: publishedResult.detail,
+              lastError: detailText,
             },
           })
         }
