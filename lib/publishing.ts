@@ -71,8 +71,8 @@ function canAttemptPublish(accountStatus: AccountStatus): boolean {
   return accountStatus === 'connected' || accountStatus === 'token_expiring'
 }
 
-function isTransientMetaError(detail: string) {
-  const text = detail.toLowerCase()
+function isTransientMetaError(detail: string | undefined | null) {
+  const text = (detail ?? '').toLowerCase()
   return (
     text.includes('temporar') ||
     text.includes('timeout') ||
@@ -539,6 +539,7 @@ export async function processScheduledPublications(
   let skipped = 0
 
   for (const post of duePosts) {
+    try {
     const platforms = parsePlatforms(post.platformsJson)
     const parsedCaption = parseStoredCaption(post.caption)
     const publishCaption = composePublishCaption({
@@ -919,6 +920,28 @@ export async function processScheduledPublications(
         finalStatus: 'published',
         detail: 'Publicacion procesada correctamente.',
         platformResults,
+      })
+    }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      const stack = err instanceof Error ? err.stack : undefined
+
+      await prisma.scheduledPost.update({
+        where: { id: post.id },
+        data: {
+          status: PostStatus.failed,
+          lastPublishError: message,
+          lastPublishDetails: { message, stack } as unknown as Prisma.InputJsonValue,
+        },
+      })
+
+      failed += 1
+      items.push({
+        postId: post.id,
+        title: post.title,
+        finalStatus: 'failed',
+        detail: message,
+        platformResults: [],
       })
     }
   }
