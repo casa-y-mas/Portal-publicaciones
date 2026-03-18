@@ -341,7 +341,7 @@ async function publishFacebookCarousel(input: {
   // Carrusel via `child_attachments` (no requiere subir fotos primero).
   // Esto suele ser más estable que `attached_media` para multi-imagen.
   const appUrl = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim() || ''
-  const safeLink = appUrl || input.mediaUrls[0]
+  const safeLink = /^https?:\/\//i.test(appUrl) ? appUrl : 'https://www.facebook.com/'
 
   const childAttachments = input.mediaUrls.map((pictureUrl) => ({
     picture: pictureUrl,
