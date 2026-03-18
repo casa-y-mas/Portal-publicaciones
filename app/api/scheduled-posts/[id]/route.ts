@@ -91,6 +91,7 @@ function serializePost(item: {
   projectId: string
   mediaAssetId: string | null
   thumbnail: string | null
+  lastPublishError: string | null
   recurrenceJson: Prisma.JsonValue | null
   platformsJson: Prisma.JsonValue
   project: { id: string; name: string }
@@ -115,6 +116,7 @@ function serializePost(item: {
     mediaAssetIds: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAssetId) : [],
     mediaAssets: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAsset) : [],
     thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
+    publishError: item.lastPublishError ?? null,
     recurrence: parseRecurrence(item.recurrenceJson),
   }
 }

@@ -18,6 +18,7 @@ export interface PostDetail {
   contentType: string
   project: string
   mediaAssetId?: string | null
+  publishError?: string | null
   publishAt: string
   creator: string
   approver: string | null
@@ -51,6 +52,7 @@ export function PostDetailModal({
   success = null,
 }: PostDetailModalProps) {
   const publishDate = new Date(post.publishAt)
+  const shouldShowPublishError = Boolean((post.status || '').toLowerCase().includes('failed')) && Boolean(post.publishError)
 
   return (
     <AppModal
@@ -78,6 +80,13 @@ export function PostDetailModal({
           <h3 className="text-2xl font-bold mb-3">{post.title}</h3>
           {post.subtitle ? <p className="text-sm text-muted-foreground mb-3">{post.subtitle}</p> : null}
           <StatusBadge status={post.status} />
+
+          {shouldShowPublishError ? (
+            <div className="mt-4 surface-muted p-3 rounded-lg">
+              <p className="text-sm font-semibold text-destructive mb-1">Error de publicacion</p>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{post.publishError}</p>
+            </div>
+          ) : null}
         </div>
 
         <div className="bg-muted rounded-lg p-6 text-center">

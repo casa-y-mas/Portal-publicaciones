@@ -194,6 +194,8 @@ model ScheduledPost {
   creatorId      String
   approverId     String?
   mediaAssetId   String?
+  lastPublishError     String?
+  lastPublishDetails   Json?
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)

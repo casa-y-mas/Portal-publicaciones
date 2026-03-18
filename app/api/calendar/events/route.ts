@@ -127,6 +127,7 @@ export async function GET(request: Request) {
       mediaAssets: item.mediaAssets.map((entry) => entry.mediaAsset),
       thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
       recurrence: parseRecurrence(item.recurrenceJson),
+      publishError: item.lastPublishError ?? null,
     })),
   })
 }

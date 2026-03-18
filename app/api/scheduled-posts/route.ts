@@ -119,6 +119,7 @@ export async function GET() {
       mediaAssets: item.mediaAssets.map((entry) => entry.mediaAsset),
       thumbnail: item.thumbnail ?? item.mediaAsset?.fileName ?? null,
       recurrence: parseRecurrence(item.recurrenceJson),
+      publishError: item.lastPublishError ?? null,
     })),
   })
 }
