@@ -242,31 +242,43 @@ export async function POST(request: Request) {
     }
   }
 
-  const created = await prisma.scheduledPost.create({
-    data: {
-      title: parsed.data.title,
-      caption: composeCaption(parsed.data.caption, parsed.data.subtitle),
-      contentType: parsed.data.contentType,
-      status: parsed.data.status,
-      publishAt,
+  let created
+  try {
+    created = await prisma.scheduledPost.create({
+      data: {
+        title: parsed.data.title,
+        caption: composeCaption(parsed.data.caption, parsed.data.subtitle),
+        contentType: parsed.data.contentType,
+        status: parsed.data.status,
+        publishAt,
+        projectId: parsed.data.projectId,
+        creatorId: session.user.id,
+        mediaAssetId,
+        thumbnail: parsed.data.thumbnail || null,
+        platformsJson: parsed.data.platforms,
+        recurrenceJson: parsed.data.recurrence ? (parsed.data.recurrence as Prisma.InputJsonValue) : Prisma.JsonNull,
+        mediaAssets:
+          mediaAssetIds.length > 0
+            ? {
+                // Usar `create` en lugar de `createMany` para evitar fallos con inserciones en relaciones.
+                create: mediaAssetIds.map((id, index) => ({ mediaAssetId: id, sortOrder: index })),
+              }
+            : undefined,
+      },
+    })
+  } catch (err) {
+    console.error('Error al crear scheduled post con mediaAssetIds', {
       projectId: parsed.data.projectId,
-      creatorId: session.user.id,
-      mediaAssetId,
-      thumbnail: parsed.data.thumbnail || null,
-      platformsJson: parsed.data.platforms,
-      recurrenceJson: parsed.data.recurrence
-        ? (parsed.data.recurrence as Prisma.InputJsonValue)
-        : Prisma.JsonNull,
-      mediaAssets: mediaAssetIds.length > 0
-        ? {
-            createMany: {
-              data: mediaAssetIds.map((id, index) => ({ mediaAssetId: id, sortOrder: index })),
-              skipDuplicates: true,
-            },
-          }
-        : undefined,
-    },
-  })
+      mediaAssetIds,
+      legacyMediaAssetId: parsed.data.mediaAssetId,
+      err,
+    })
+    const detailsMessage = err instanceof Error ? err.message : String(err)
+    return NextResponse.json(
+      { message: `Error al guardar la publicacion programada: ${detailsMessage}`, details: detailsMessage },
+      { status: 500 },
+    )
+  }
 
   const createdWithRelations = await prisma.scheduledPost.findUnique({
     where: { id: created.id },
