@@ -118,6 +118,37 @@ function composePublishCaption(input: { title: string; subtitle: string | null; 
   return lines.join('\n')
 }
 
+async function safeUpdateScheduledPostPublishError(input: {
+  postId: string
+  status: PostStatus
+  lastPublishError?: string | null
+  lastPublishDetails?: Prisma.InputJsonValue | null
+}) {
+  try {
+    return await prisma.scheduledPost.update({
+      where: { id: input.postId },
+      data: {
+        status: input.status,
+        ...(input.lastPublishError !== undefined ? { lastPublishError: input.lastPublishError } : {}),
+        ...(input.lastPublishDetails !== undefined ? { lastPublishDetails: input.lastPublishDetails } : {}),
+      },
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    const isUnknownArg =
+      message.includes('Unknown argument lastPublishError') || message.includes('Unknown argument lastPublishDetails')
+    if (isUnknownArg) {
+      // Compatibilidad: si el Prisma Client no tiene estos campos (ej. no se regenero en la VPS),
+      // al menos guardamos el status para no tumbar el publicador.
+      return prisma.scheduledPost.update({
+        where: { id: input.postId },
+        data: { status: input.status },
+      })
+    }
+    throw err
+  }
+}
+
 async function publishToMetaPlatform(input: {
   platform: PlatformName
   contentType: 'post' | 'reel' | 'story' | 'carousel'
@@ -554,9 +585,11 @@ export async function processScheduledPublications(
     const primary = mediaCandidates[0]
 
     if (platforms.length === 0) {
-      await prisma.scheduledPost.update({
-        where: { id: post.id },
-        data: { status: PostStatus.failed, lastPublishError: 'Sin redes configuradas.', lastPublishDetails: Prisma.JsonNull },
+      await safeUpdateScheduledPostPublishError({
+        postId: post.id,
+        status: PostStatus.failed,
+        lastPublishError: 'Sin redes configuradas.',
+        lastPublishDetails: Prisma.JsonNull,
       })
       await Promise.all([
         createActivityLog({
@@ -588,9 +621,11 @@ export async function processScheduledPublications(
     }
 
     if (!primary?.url) {
-      await prisma.scheduledPost.update({
-        where: { id: post.id },
-        data: { status: PostStatus.failed, lastPublishError: 'Sin archivo multimedia disponible.', lastPublishDetails: Prisma.JsonNull },
+      await safeUpdateScheduledPostPublishError({
+        postId: post.id,
+        status: PostStatus.failed,
+        lastPublishError: 'Sin archivo multimedia disponible.',
+        lastPublishDetails: Prisma.JsonNull,
       })
       await Promise.all([
         createActivityLog({
@@ -858,13 +893,11 @@ export async function processScheduledPublications(
       .map((entry) => `${entry.platform}: ${entry.detail}`)
       .slice(0, 10)
     const failureMessage = postFailed ? failureLines.join('\n') || lastCarouselErrorDetail || 'Error de publicacion.' : null
-    await prisma.scheduledPost.update({
-      where: { id: post.id },
-      data: {
-        status: finalStatus,
-        lastPublishError: failureMessage,
-        lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
-      },
+    await safeUpdateScheduledPostPublishError({
+      postId: post.id,
+      status: finalStatus,
+      lastPublishError: failureMessage,
+      lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
     })
 
     if (postFailed) {
@@ -926,13 +959,11 @@ export async function processScheduledPublications(
       const message = err instanceof Error ? err.message : String(err)
       const stack = err instanceof Error ? err.stack : undefined
 
-      await prisma.scheduledPost.update({
-        where: { id: post.id },
-        data: {
-          status: PostStatus.failed,
-          lastPublishError: message,
-          lastPublishDetails: { message, stack } as unknown as Prisma.InputJsonValue,
-        },
+      await safeUpdateScheduledPostPublishError({
+        postId: post.id,
+        status: PostStatus.failed,
+        lastPublishError: message,
+        lastPublishDetails: { message, stack } as unknown as Prisma.InputJsonValue,
       })
 
       failed += 1
