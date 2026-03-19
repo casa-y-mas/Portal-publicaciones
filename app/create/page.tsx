@@ -308,7 +308,13 @@ export default function CreatePage() {
         throw new Error(json?.message ?? 'No se pudo crear la publicacion programada.')
       }
 
-      setSuccess('Publicacion programada creada correctamente.')
+      const json = await response.json().catch(() => null)
+      const savedCount = Array.isArray(json?.item?.mediaAssetIds) ? json.item.mediaAssetIds.length : null
+      setSuccess(
+        savedCount !== null
+          ? `Publicacion programada creada correctamente (${savedCount} medias).`
+          : 'Publicacion programada creada correctamente.',
+      )
       setTimeout(() => {
         router.push('/publicaciones-programadas')
         router.refresh()
