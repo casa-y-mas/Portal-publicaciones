@@ -118,6 +118,18 @@ function composePublishCaption(input: { title: string; subtitle: string | null; 
   return lines.join('\n')
 }
 
+function buildPublicMediaUrl(mediaUrl: string) {
+  const isHttp = /^https?:\/\//i.test(mediaUrl)
+  if (isHttp) return mediaUrl
+
+  const appUrl = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim() || ''
+  if (!appUrl) return mediaUrl
+
+  const base = appUrl.replace(/\/$/, '')
+  const path = mediaUrl.startsWith('/') ? mediaUrl : `/${mediaUrl}`
+  return `${base}${path}`
+}
+
 async function safeUpdateScheduledPostPublishError(input: {
   postId: string
   status: PostStatus
@@ -347,11 +359,12 @@ async function publishFacebookCarousel(input: {
   const uploadedMediaIds: string[] = []
 
   for (const mediaUrl of input.mediaUrls) {
+    const publicMediaUrl = buildPublicMediaUrl(mediaUrl)
     const uploadEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
     const body = new URLSearchParams()
     body.set('access_token', input.accessToken)
     body.set('published', 'true')
-    body.set('url', mediaUrl)
+    body.set('url', publicMediaUrl)
 
     const response = await fetch(uploadEndpoint, {
       method: 'POST',
@@ -407,10 +420,11 @@ async function publishInstagramCarousel(input: {
   const childrenIds: string[] = []
 
   for (const mediaUrl of input.mediaUrls) {
+    const publicMediaUrl = buildPublicMediaUrl(mediaUrl)
     const containerEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.instagramUserId)}/media`
     const body = new URLSearchParams()
     body.set('access_token', input.accessToken)
-    body.set('image_url', mediaUrl)
+    body.set('image_url', publicMediaUrl)
     body.set('is_carousel_item', 'true')
 
     const response = await fetch(containerEndpoint, {
