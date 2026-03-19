@@ -144,7 +144,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
   }
 
-  const incomingMediaAssetIds = Array.isArray(parsed.data.mediaAssetIds) ? parsed.data.mediaAssetIds.filter(Boolean) : []
+  // Usar `raw` para evitar que un schema viejo/estricto de Zod ignore el campo,
+  // y así garantizar que guardamos el array enviado desde el frontend.
+  const incomingMediaAssetIds = Array.isArray((raw as any)?.mediaAssetIds)
+    ? (raw as any).mediaAssetIds.filter(Boolean)
+    : []
   const mediaAssetIdFromLegacy = parsed.data.mediaAssetId || ''
   const mediaAssetIds = Array.from(new Set([mediaAssetIdFromLegacy, ...incomingMediaAssetIds].filter(Boolean)))
   const mediaAssetId = mediaAssetIds[0] || null

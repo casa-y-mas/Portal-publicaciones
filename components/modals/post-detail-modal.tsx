@@ -81,6 +81,7 @@ export function PostDetailModal({
 
   const mediaAssets = post.mediaAssets ?? []
   const imageAssets = mediaAssets.filter((m) => Boolean(m.url)).slice(0, 10)
+  const mediaNames = mediaAssets.map((m) => m.fileName).filter(Boolean)
 
   return (
     <AppModal
@@ -156,6 +157,11 @@ export function PostDetailModal({
           </div>
 
           <div className="p-4">
+            {mediaAssets.length > 0 ? (
+              <div className="text-xs text-muted-foreground mb-2">
+                Medias ({mediaAssets.length}): {mediaNames.join(', ')}
+              </div>
+            ) : null}
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{previewCaption}</p>
           </div>
         </div>
