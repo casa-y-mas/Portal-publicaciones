@@ -338,21 +338,45 @@ async function publishFacebookCarousel(input: {
   caption: string
   mediaUrls: string[]
 }) {
-  // Carrusel via `child_attachments` (no requiere subir fotos primero).
-  // Esto suele ser más estable que `attached_media` para multi-imagen.
-  const appUrl = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim() || ''
-  const safeLink = /^https?:\/\//i.test(appUrl) ? appUrl : 'https://www.facebook.com/'
+  // Para multi-imagen en Facebook (Page Feed) es más confiable:
+  // 1) Subir fotos al endpoint /{pageId}/photos
+  // 2) Publicar un post en /{pageId}/feed adjuntando las fotos con attached_media
+  //
+  // NOTA: en algunos casos se ha visto que `published: false` en el upload puede
+  // provocar que el post final solo muestre 1 imagen. Por eso usamos published:true.
+  const uploadedMediaIds: string[] = []
 
-  const childAttachments = input.mediaUrls.map((pictureUrl) => ({
-    picture: pictureUrl,
-    link: safeLink,
-  }))
+  for (const mediaUrl of input.mediaUrls) {
+    const uploadEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
+    const body = new URLSearchParams()
+    body.set('access_token', input.accessToken)
+    body.set('published', 'true')
+    body.set('url', mediaUrl)
+
+    const response = await fetch(uploadEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      cache: 'no-store',
+    })
+
+    const json = await response.json().catch(() => null)
+    if (!response.ok || !json?.id) {
+      const apiMessage = json?.error?.message ?? 'No se pudo subir una imagen para carrusel.'
+      return { ok: false, detail: `Meta API rechazo el carrusel (upload): ${apiMessage}`, externalId: null }
+    }
+
+    uploadedMediaIds.push(json.id as string)
+  }
 
   const feedEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/feed`
   const feedBody = new URLSearchParams()
   feedBody.set('access_token', input.accessToken)
   feedBody.set('message', input.caption)
-  feedBody.set('child_attachments', JSON.stringify(childAttachments))
+
+  uploadedMediaIds.forEach((id, index) => {
+    feedBody.set(`attached_media[${index}]`, JSON.stringify({ media_fbid: id }))
+  })
 
   const feedResponse = await fetch(feedEndpoint, {
     method: 'POST',
