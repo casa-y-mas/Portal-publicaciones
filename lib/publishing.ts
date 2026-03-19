@@ -353,9 +353,7 @@ async function publishFacebookCarousel(input: {
   // Para multi-imagen en Facebook (Page Feed) es más confiable:
   // 1) Subir fotos al endpoint /{pageId}/photos
   // 2) Publicar un post en /{pageId}/feed adjuntando las fotos con attached_media
-  //
-  // NOTA: en algunos casos se ha visto que `published: false` en el upload puede
-  // provocar que el post final solo muestre 1 imagen. Por eso usamos published:true.
+  // Las fotos del paso 1 deben quedar no publicadas para evitar posts individuales.
   const uploadedMediaIds: string[] = []
 
   for (const mediaUrl of input.mediaUrls) {
@@ -363,7 +361,7 @@ async function publishFacebookCarousel(input: {
     const uploadEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
     const body = new URLSearchParams()
     body.set('access_token', input.accessToken)
-    body.set('published', 'true')
+    body.set('published', 'false')
     body.set('url', publicMediaUrl)
 
     const response = await fetch(uploadEndpoint, {
