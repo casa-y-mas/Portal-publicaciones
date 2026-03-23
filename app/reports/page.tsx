@@ -188,6 +188,7 @@ export default async function ReportsPage() {
                 <th className="py-2 pr-3">Proyecto</th>
                 <th className="py-2 pr-3">Fecha</th>
                 <th className="py-2 pr-3">Redes</th>
+                <th className="py-2 pr-3">Interacciones</th>
                 <th className="py-2 pr-3">Exito</th>
                 <th className="py-2 pr-3">Nivel</th>
               </tr>
@@ -203,6 +204,9 @@ export default async function ReportsPage() {
                   <td className="py-2 pr-3">{new Date(item.publishAt).toLocaleString()}</td>
                   <td className="py-2 pr-3">{item.platforms.join(', ') || 'N/D'}</td>
                   <td className="py-2 pr-3">
+                    {item.interactions} (👍 {item.likes} • 💬 {item.comments} • 🔁 {item.shares})
+                  </td>
+                  <td className="py-2 pr-3">
                     {item.successRate}% ({item.successCount}/{item.executions})
                   </td>
                   <td className="py-2 pr-3 capitalize">{item.level}</td>
@@ -210,7 +214,7 @@ export default async function ReportsPage() {
               ))}
               {postPerformance.topPosts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-6 text-center text-muted-foreground">
                     Aun no hay publicaciones suficientes para calcular desempeno por post.
                   </td>
                 </tr>

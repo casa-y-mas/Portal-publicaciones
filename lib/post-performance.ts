@@ -28,6 +28,10 @@ type PostPerformanceItem = {
   successCount: number
   failedCount: number
   successRate: number
+  interactions: number
+  likes: number
+  comments: number
+  shares: number
   level: 'alto' | 'medio' | 'bajo'
 }
 
@@ -58,9 +62,54 @@ function normalizeStatus(value: string) {
   return value.trim().toLowerCase().replace(/_/g, '-')
 }
 
-function parsePlatformResults(value: Prisma.JsonValue | null): Array<{ ok?: boolean; platform?: string }> {
+function parsePlatformResults(value: Prisma.JsonValue | null): Array<{ ok?: boolean; platform?: string; externalId?: string | null }> {
   if (!Array.isArray(value)) return []
-  return value.filter((item): item is { ok?: boolean; platform?: string } => typeof item === 'object' && item !== null)
+  return value.filter((item): item is { ok?: boolean; platform?: string; externalId?: string | null } => typeof item === 'object' && item !== null)
+}
+
+function asNumber(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+async function fetchGraph(url: URL) {
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  const json = (await response.json().catch(() => null)) as
+    | { error?: { message?: string }; [key: string]: unknown }
+    | null
+  if (!response.ok) {
+    throw new Error(json?.error?.message ?? 'Error consultando Graph API.')
+  }
+  return json
+}
+
+async function fetchFacebookPostInteractions(postId: string, token: string) {
+  const url = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(postId)}`)
+  url.searchParams.set('fields', 'reactions.summary(true),comments.summary(true),shares')
+  url.searchParams.set('access_token', token)
+  const json = await fetchGraph(url)
+  const likes = asNumber((json?.reactions as { summary?: { total_count?: unknown } } | undefined)?.summary?.total_count)
+  const comments = asNumber((json?.comments as { summary?: { total_count?: unknown } } | undefined)?.summary?.total_count)
+  const shares = asNumber((json?.shares as { count?: unknown } | undefined)?.count)
+  return { likes, comments, shares }
+}
+
+async function fetchInstagramPostInteractions(mediaId: string, token: string) {
+  const url = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(mediaId)}`)
+  url.searchParams.set('fields', 'like_count,comments_count')
+  url.searchParams.set('access_token', token)
+  const json = await fetchGraph(url)
+  const likes = asNumber(json?.like_count)
+  const comments = asNumber(json?.comments_count)
+  return { likes, comments, shares: 0 }
 }
 
 export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPerformanceSummary> {
@@ -82,7 +131,18 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
       publishAt: true,
       platformsJson: true,
       lastPublishDetails: true,
-      project: { select: { id: true, name: true } },
+      project: {
+        select: {
+          id: true,
+          name: true,
+          socialAccounts: {
+            select: {
+              platform: true,
+              accessToken: true,
+            },
+          },
+        },
+      },
     },
   })
 
@@ -103,6 +163,35 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
     const failedCount = Math.max(0, executions - successCount)
     const successRate = executions > 0 ? Number(((successCount / executions) * 100).toFixed(1)) : 0
     const normalizedStatus = normalizeStatus(row.status)
+    let likes = 0
+    let comments = 0
+    let shares = 0
+
+    if ((process.env.PUBLISHER_MODE?.trim().toLowerCase() || 'mock') === 'live' && row.status === PostStatus.published) {
+      for (const result of results) {
+        const platform = typeof result.platform === 'string' ? result.platform.trim().toLowerCase() : ''
+        const externalId = typeof result.externalId === 'string' ? result.externalId.trim() : ''
+        if (!externalId || !platform) continue
+        const accountToken = row.project.socialAccounts.find((acc) => acc.platform === platform)?.accessToken ?? null
+        if (!accountToken) continue
+
+        try {
+          if (platform === 'facebook') {
+            const fb = await fetchFacebookPostInteractions(externalId, accountToken)
+            likes += fb.likes
+            comments += fb.comments
+            shares += fb.shares
+          } else if (platform === 'instagram') {
+            const ig = await fetchInstagramPostInteractions(externalId, accountToken)
+            likes += ig.likes
+            comments += ig.comments
+          }
+        } catch {
+          // Si una publicacion no soporta metrica por permisos/tipo, se omite sin romper reportes.
+        }
+      }
+    }
+    const interactions = likes + comments + shares
 
     if (row.status === PostStatus.published) published += 1
     if (row.status === PostStatus.failed) failed += 1
@@ -141,7 +230,11 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
       successCount,
       failedCount,
       successRate,
-      level: successRate >= 80 ? 'alto' : successRate >= 50 ? 'medio' : 'bajo',
+      interactions,
+      likes,
+      comments,
+      shares,
+      level: interactions >= 20 || successRate >= 90 ? 'alto' : interactions >= 5 || successRate >= 60 ? 'medio' : 'bajo',
     })
   }
 
@@ -157,6 +250,7 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
     byProject: Array.from(byProjectMap.values()).sort((a, b) => b.total - a.total),
     topPosts: postItems
       .sort((a, b) => {
+        if (b.interactions !== a.interactions) return b.interactions - a.interactions
         if (b.successRate !== a.successRate) return b.successRate - a.successRate
         return new Date(b.publishAt).getTime() - new Date(a.publishAt).getTime()
       })

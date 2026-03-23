@@ -15,6 +15,7 @@ export interface PublishExecutionItem {
     platform: string
     ok: boolean
     detail: string
+    externalId?: string | null
   }>
 }
 
@@ -836,6 +837,7 @@ export async function processScheduledPublications(
         platform: platformLabel,
         ok: publishedResult.ok,
         detail: publishedResult.detail,
+        externalId: publishedResult.externalId ?? null,
       })
 
       if (!publishedResult.ok) {
