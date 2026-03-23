@@ -23,7 +23,8 @@ type RecurrenceInfo = {
   type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
   endType?: 'never' | 'date'
   endDate?: string
-  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+  endTime?: string
+  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'minutes'
   customInterval?: number
 }
 
@@ -50,6 +51,7 @@ function parseRecurrence(value: Prisma.JsonValue | null): RecurrenceInfo | undef
     type: typeof candidate.type === 'string' ? (candidate.type as RecurrenceInfo['type']) : undefined,
     endType: candidate.endType === 'date' ? 'date' : 'never',
     endDate: typeof candidate.endDate === 'string' ? candidate.endDate : undefined,
+    endTime: typeof candidate.endTime === 'string' ? candidate.endTime : undefined,
     customFrequency:
       typeof candidate.customFrequency === 'string'
         ? (candidate.customFrequency as RecurrenceInfo['customFrequency'])

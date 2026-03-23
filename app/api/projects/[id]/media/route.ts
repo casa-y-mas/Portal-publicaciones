@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-
-import { prisma } from '@/lib/prisma'
+import { fetchExternalProjectByIdOrSlug, normalizeExternalProjectMedia } from '@/lib/external-projects'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -9,31 +8,27 @@ interface Params {
 export async function GET(_request: Request, { params }: Params) {
   const { id } = await params
 
-  const project = await prisma.project.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      name: true,
-      color: true,
-    },
-  })
+  try {
+    const project = await fetchExternalProjectByIdOrSlug(id)
+    if (!project) {
+      return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
+    }
 
-  if (!project) {
-    return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
+    const items = normalizeExternalProjectMedia(project)
+    const projectId = project.id != null ? String(project.id) : project.slug ?? id
+    const projectName = project.titulo?.trim() || project.slug || `Proyecto ${projectId}`
+
+    return NextResponse.json({
+      project: {
+        id: projectId,
+        name: projectName,
+        color: '#3B82F6',
+      },
+      total: items.length,
+      items,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo cargar la media del proyecto externo.'
+    return NextResponse.json({ message }, { status: 502 })
   }
-
-  const items = await prisma.mediaAsset.findMany({
-    where: { projectId: id },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      project: { select: { id: true, name: true, color: true } },
-      uploadedBy: { select: { id: true, name: true, email: true } },
-    },
-  })
-
-  return NextResponse.json({
-    project,
-    total: items.length,
-    items,
-  })
 }

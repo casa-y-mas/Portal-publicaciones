@@ -143,6 +143,20 @@ export function CalendarEventModal({ post, onClose, onUpdated }: CalendarEventMo
           </div>
         </div>
 
+          <div className="surface-muted p-4">
+            <p className="text-xs text-muted-foreground mb-1">Se publicara</p>
+            <p className="text-sm font-semibold">{post.title}</p>
+            {post.subtitle ? <p className="text-xs text-muted-foreground mt-1">{post.subtitle}</p> : null}
+            {post.caption ? (
+              <p className="text-xs text-muted-foreground mt-2 whitespace-pre-wrap">
+                {post.caption.length > 220 ? `${post.caption.slice(0, 220)}...` : post.caption}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted-foreground mt-2">
+              Hora: {new Date(post.publishAt).toLocaleString()}
+            </p>
+          </div>
+
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {success ? <p className="text-sm text-primary">{success}</p> : null}
 

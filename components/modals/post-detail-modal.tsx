@@ -42,7 +42,8 @@ export interface PostDetail {
     type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
     endType?: 'never' | 'date'
     endDate?: string
-    customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+    endTime?: string
+    customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'minutes'
     customInterval?: number
   }
 }
@@ -218,7 +219,10 @@ export function PostDetailModal({
               <div className="space-y-2">
                 <RecurrenceBadge recurrence={post.recurrence} />
                 {post.recurrence.endType === 'date' ? (
-                  <p className="text-xs text-muted-foreground">Finaliza: {post.recurrence.endDate}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Finaliza: {post.recurrence.endDate}
+                    {post.recurrence.endTime ? ` ${post.recurrence.endTime}` : null}
+                  </p>
                 ) : null}
               </div>
             </div>

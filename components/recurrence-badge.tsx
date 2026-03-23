@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { type ReactNode } from 'react'
 
@@ -7,7 +7,8 @@ interface RecurrenceInfo {
   type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
   endType?: 'never' | 'date'
   endDate?: string
-  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+  endTime?: string
+  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'minutes'
   customInterval?: number
 }
 
@@ -33,7 +34,19 @@ export function RecurrenceBadge({ recurrence }: RecurrenceBadgeProps): ReactNode
       case 'weekly':
         return 'Cada semana'
       case 'custom':
-        return `Cada ${recurrence.customInterval || 1} ${recurrence.customFrequency || 'dia'}`
+        {
+          const interval = recurrence.customInterval || 1
+          const frequencyKey = recurrence.customFrequency || 'daily'
+          const frequencyLabel: Record<string, string> = {
+            hourly: 'horas',
+            daily: 'dias',
+            weekly: 'semanas',
+            monthly: 'meses',
+            yearly: 'anios',
+            minutes: 'minutos',
+          }
+          return `Cada ${interval} ${frequencyLabel[frequencyKey] ?? frequencyKey}`
+        }
       default:
         return 'Recurrente'
     }

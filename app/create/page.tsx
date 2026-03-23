@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, Sparkles } from 'lucide-react'
+import { Check, Link2, Sparkles, Upload } from 'lucide-react'
 
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { RecurrenceSettings, type RecurrenceSettings as RecurrenceSettingsType } from '@/components/create/recurrence-settings'
@@ -15,11 +15,30 @@ type ContentTypeForm = 'post' | 'reel' | 'story' | 'carousel'
 interface ProjectOption {
   id: string
   name: string
+  slug?: string
+  color?: string
+  description?: string | null
+  tipoOperacion?: string
+  estado?: string
+  ubicacionTexto?: string | null
+  areaTotalM2?: string | null
+  precioSoles?: string | null
+  precioDolares?: string | null
+  numVisitas?: number
+  numFavoritos?: number
+  counts?: {
+    posts: number
+    mediaAssets: number
+    socialAccounts: number
+  }
 }
 
 interface MediaOption {
   id: string
   fileName: string
+  url?: string
+  type?: 'image' | 'video'
+  mimeType?: string
 }
 
 interface PublishingReadiness {
@@ -76,9 +95,23 @@ export default function CreatePage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [aiBusy, setAiBusy] = useState(false)
+
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const getLocalDateInputValue = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  const getLocalTimeInputValue = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  const getRoundedNow = () => {
+    const d = new Date()
+    d.setSeconds(0, 0)
+    if (d.getTime() < Date.now()) d.setMinutes(d.getMinutes() + 1)
+    return d
+  }
+
+  const initialScheduled = getRoundedNow()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [mediaOptions, setMediaOptions] = useState<MediaOption[]>([])
+  const [previewMediaId, setPreviewMediaId] = useState<string | null>(null)
   const [readiness, setReadiness] = useState<PublishingReadiness | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
 
@@ -91,8 +124,8 @@ export default function CreatePage() {
     mediaAssetIds: [] as string[],
     caption: '',
     hashtags: '',
-    scheduledDate: '',
-    scheduledTime: '',
+    scheduledDate: getLocalDateInputValue(initialScheduled),
+    scheduledTime: getLocalTimeInputValue(initialScheduled),
     status: 'scheduled' as PostStatusForm,
   })
 
@@ -105,6 +138,8 @@ export default function CreatePage() {
   const [aiTone, setAiTone] = useState<'profesional' | 'juvenil' | 'vendedor' | 'minimalista'>('profesional')
   const [aiObjective, setAiObjective] = useState<'branding' | 'leads' | 'visitas' | 'ventas'>('branding')
   const [aiVariants, setAiVariants] = useState<string[]>([])
+  const [externalBusy, setExternalBusy] = useState(false)
+  const externalFileInputRef = useRef<HTMLInputElement>(null)
 
   const platforms = ['Instagram', 'Facebook', 'TikTok', 'YouTube Shorts', 'X', 'LinkedIn']
   const hasFacebookSelected = formData.platforms.some((platform) => platform.toLowerCase() === 'facebook')
@@ -119,7 +154,45 @@ export default function CreatePage() {
         const response = await fetch('/api/projects')
         if (!response.ok) throw new Error('No se pudieron cargar los proyectos.')
         const json = await response.json()
-        const items = (json.items ?? []).map((item: { id: string; name: string }) => ({ id: item.id, name: item.name }))
+        const items = (json.items ?? []).map((item: {
+          id: string
+          name: string
+          slug?: string
+          color?: string
+          description?: string | null
+          tipoOperacion?: string
+          estado?: string
+          ubicacionTexto?: string | null
+          areaTotalM2?: string | null
+          precioSoles?: string | null
+          precioDolares?: string | null
+          numVisitas?: number
+          numFavoritos?: number
+          _count?: {
+            posts?: number
+            mediaAssets?: number
+            socialAccounts?: number
+          }
+        }) => ({
+          id: item.id,
+          name: item.name,
+          slug: item.slug,
+          color: item.color,
+          description: item.description ?? null,
+          tipoOperacion: item.tipoOperacion,
+          estado: item.estado,
+          ubicacionTexto: item.ubicacionTexto ?? null,
+          areaTotalM2: item.areaTotalM2 ?? null,
+          precioSoles: item.precioSoles ?? null,
+          precioDolares: item.precioDolares ?? null,
+          numVisitas: item.numVisitas ?? 0,
+          numFavoritos: item.numFavoritos ?? 0,
+          counts: {
+            posts: item._count?.posts ?? 0,
+            mediaAssets: item._count?.mediaAssets ?? 0,
+            socialAccounts: item._count?.socialAccounts ?? 0,
+          },
+        }))
 
         if (!mounted) return
 
@@ -159,9 +232,18 @@ export default function CreatePage() {
           return
         }
         const json = await response.json()
-        const items: MediaOption[] = (json.items ?? []).map((item: { id: string; fileName: string }) => ({
+        const items: MediaOption[] = (json.items ?? []).map((item: {
+          id: string
+          fileName: string
+          url?: string
+          type?: 'image' | 'video'
+          mimeType?: string
+        }) => ({
           id: item.id,
           fileName: item.fileName,
+          url: item.url,
+          type: item.type,
+          mimeType: item.mimeType,
         }))
 
         if (!mounted) return
@@ -173,6 +255,11 @@ export default function CreatePage() {
             ? prev.mediaAssetIds.filter((id) => items.some((item) => item.id === id))
             : items.map((item) => item.id),
         }))
+        setPreviewMediaId((prev) => {
+          if (prev && items.some((item) => item.id === prev)) return prev
+          const selected = items.find((item) => formData.mediaAssetIds.includes(item.id))
+          return selected?.id ?? items[0]?.id ?? null
+        })
       } catch {
         if (mounted) setMediaOptions([])
       }
@@ -217,10 +304,21 @@ export default function CreatePage() {
     }
   }, [formData.projectId, hasFacebookSelected, hasInstagramSelected])
 
-  const selectedProjectName = useMemo(
-    () => projects.find((project) => project.id === formData.projectId)?.name ?? 'No definido',
+  const selectedProject = useMemo(
+    () => projects.find((project) => project.id === formData.projectId) ?? null,
     [projects, formData.projectId],
   )
+  const selectedPreviewMedia = useMemo(() => {
+    const selectedIds = formData.mediaAssetIds
+    if (selectedIds.length === 0) return null
+    const preferred = previewMediaId
+      ? mediaOptions.find((item) => item.id === previewMediaId && selectedIds.includes(item.id))
+      : null
+    if (preferred) return preferred
+    return mediaOptions.find((item) => selectedIds.includes(item.id)) ?? null
+  }, [mediaOptions, formData.mediaAssetIds, previewMediaId])
+
+  const selectedProjectName = selectedProject?.name ?? 'No definido'
 
   const togglePlatform = (platform: string) => {
     setFormData((prev) => ({
@@ -231,25 +329,143 @@ export default function CreatePage() {
     }))
   }
 
-  const generateAI = () => {
-    const base = aiSeedByTone[aiTone]
-    const objectiveLine: Record<typeof aiObjective, string> = {
-      branding: 'Objetivo: reforzar marca y recordacion.',
-      leads: 'Objetivo: captar leads por WhatsApp.',
-      visitas: 'Objetivo: generar visitas al proyecto.',
-      ventas: 'Objetivo: cerrar ventas con urgencia comercial.',
+  const addMediaAssetFromServerRecord = (record: MediaOption) => {
+    setMediaOptions((prev) => (prev.some((m) => m.id === record.id) ? prev : [...prev, record]))
+    setFormData((prev) => ({
+      ...prev,
+      mediaAssetIds: prev.mediaAssetIds.includes(record.id) ? prev.mediaAssetIds : [...prev.mediaAssetIds, record.id],
+    }))
+  }
+
+  const mimeToMediaAssetType = (mime: string): 'image' | 'video' => {
+    const m = (mime || '').toLowerCase()
+    if (m.startsWith('video/')) return 'video'
+    return 'image'
+  }
+
+  const registerUploadedAsMedia = async (
+    payload: { fileName: string; url: string; mimeType: string; type: 'image' | 'video'; sizeBytes: number },
+    tags: string[],
+  ) => {
+    const mediaRes = await fetch('/api/media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: payload.fileName,
+        url: payload.url,
+        mimeType: payload.mimeType,
+        type: payload.type,
+        sizeBytes: payload.sizeBytes,
+        projectId: formData.projectId,
+        tags,
+      }),
+    })
+    if (!mediaRes.ok) {
+      const j = await mediaRes.json().catch(() => null)
+      throw new Error((j as { message?: string })?.message ?? 'No se pudo registrar la media en el proyecto.')
     }
+    const created = (await mediaRes.json()) as { id: string; fileName: string }
+    addMediaAssetFromServerRecord({ id: created.id, fileName: created.fileName })
+  }
 
-    const variants = base.slice(0, 3).map((line, index) => `${line} ${objectiveLine[aiObjective]} Variante ${index + 1}.`)
-    setAiVariants(variants)
+  const handleExternalFilesSelected = async (fileList: FileList | null) => {
+    if (!fileList?.length) return
+    if (!formData.projectId) {
+      setError('Selecciona un proyecto primero (paso 1).')
+      return
+    }
+    setExternalBusy(true)
+    setError(null)
+    try {
+      const files = Array.from(fileList)
+      for (const file of files) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const up = await fetch('/api/uploads', { method: 'POST', body: fd })
+        if (!up.ok) {
+          const j = await up.json().catch(() => null)
+          throw new Error((j as { message?: string })?.message ?? `No se pudo subir: ${file.name}`)
+        }
+        const uploaded = (await up.json()) as {
+          url: string
+          mimeType?: string
+          sizeBytes?: number
+          fileName?: string
+        }
+        const mime = uploaded.mimeType || file.type || 'application/octet-stream'
+        await registerUploadedAsMedia(
+          {
+            fileName: uploaded.fileName || file.name,
+            url: uploaded.url,
+            mimeType: mime,
+            type: mimeToMediaAssetType(mime),
+            sizeBytes: uploaded.sizeBytes ?? file.size,
+          },
+          ['externo'],
+        )
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error subiendo archivo externo.')
+    } finally {
+      setExternalBusy(false)
+      if (externalFileInputRef.current) externalFileInputRef.current.value = ''
+    }
+  }
 
-    if (!formData.caption) {
-      setFormData((prev) => ({
-        ...prev,
-        caption: variants[0],
-        hashtags: '#inmobiliaria #hogar #inversion',
-        title: prev.title || `Publicacion ${selectedProjectName}`,
-      }))
+  const generateAI = async () => {
+    setAiBusy(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch('/api/ai/gemini-generate-description', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modoIA: aiTone,
+          objetivoIA: aiObjective,
+          tone: aiTone,
+          objective: aiObjective,
+          projectName: selectedProjectName,
+          projectContext: selectedProject
+            ? {
+                tipoOperacion: selectedProject.tipoOperacion,
+                estado: selectedProject.estado,
+                ubicacion: selectedProject.ubicacionTexto,
+                areaTotalM2: selectedProject.areaTotalM2,
+                precioSoles: selectedProject.precioSoles,
+                precioDolares: selectedProject.precioDolares,
+                descripcionProyecto: selectedProject.description,
+              }
+            : null,
+          title: formData.title,
+          subtitle: formData.subtitle,
+        }),
+      })
+
+      if (!response.ok) {
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudo generar descripcion con IA.')
+      }
+
+      const json = await response.json()
+      const variants = Array.isArray(json?.variants) ? json.variants.filter((v: unknown) => typeof v === 'string') : []
+      if (variants.length === 0) throw new Error('Gemini no devolvio variantes.')
+
+      setAiVariants(variants.slice(0, 3))
+
+      if (!formData.caption) {
+        setFormData((prev) => ({
+          ...prev,
+          caption: variants[0],
+          hashtags: '#inmobiliaria #hogar #inversion',
+          title: prev.title || `Publicacion ${selectedProjectName}`,
+        }))
+      }
+    } catch (generateError) {
+      setError(generateError instanceof Error ? generateError.message : 'Error generando con IA.')
+    } finally {
+      setAiBusy(false)
     }
   }
 
@@ -438,7 +654,7 @@ export default function CreatePage() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold block mb-2">Media de biblioteca (opcional)</label>
+                <label className="text-sm font-semibold block mb-2">Multimedia del post (biblioteca o externa)</label>
                 <div className="space-y-3">
                   {formData.mediaAssetIds.length === 0 ? (
                     <div className="text-xs text-muted-foreground">Sin media asociada</div>
@@ -449,6 +665,13 @@ export default function CreatePage() {
                         return (
                           <div key={id} className="flex items-center gap-2 bg-muted border border-border rounded-lg px-3 py-2">
                             <span className="text-xs font-semibold">{media?.fileName ?? 'Media'}</span>
+                            <button
+                              type="button"
+                              className="text-xs text-primary hover:text-primary/80"
+                              onClick={() => setPreviewMediaId(id)}
+                            >
+                              Previsualizar
+                            </button>
                             <button
                               type="button"
                               className="text-xs text-muted-foreground hover:text-foreground"
@@ -463,6 +686,29 @@ export default function CreatePage() {
                       })}
                     </div>
                   )}
+                  {selectedPreviewMedia?.url ? (
+                    <div className="rounded-lg border border-border overflow-hidden bg-muted">
+                      {selectedPreviewMedia.type === 'video' || selectedPreviewMedia.mimeType?.startsWith('video/') ? (
+                        <video
+                          src={selectedPreviewMedia.url}
+                          controls
+                          className="w-full max-h-64 object-contain bg-black"
+                          preload="metadata"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={selectedPreviewMedia.url}
+                          alt={selectedPreviewMedia.fileName}
+                          className="w-full max-h-64 object-contain"
+                          loading="lazy"
+                        />
+                      )}
+                      <div className="px-3 py-2 text-xs text-muted-foreground border-t border-border">
+                        Vista previa: <span className="font-semibold text-foreground">{selectedPreviewMedia.fileName}</span>
+                      </div>
+                    </div>
+                  ) : null}
                   <select
                     value=""
                     onChange={(e) => {
@@ -472,6 +718,7 @@ export default function CreatePage() {
                         ...prev,
                         mediaAssetIds: prev.mediaAssetIds.includes(value) ? prev.mediaAssetIds : [...prev.mediaAssetIds, value],
                       }))
+                      setPreviewMediaId(value)
                     }}
                     className="w-full bg-muted border border-border rounded-lg px-3 py-2"
                   >
@@ -486,6 +733,34 @@ export default function CreatePage() {
                   </select>
                   <div className="text-xs text-muted-foreground">
                     Se carga automaticamente la multimedia del proyecto seleccionado. Puedes quitar o agregar archivos para esta publicacion.
+                  </div>
+                  <div className="border-t border-border pt-4 mt-2 space-y-3">
+                    <p className="text-sm font-semibold">Contenido externo</p>
+                    <p className="text-xs text-muted-foreground">
+                      Sube imagenes o videos desde tu equipo. Se guardan en la biblioteca del proyecto y se anaden al post.
+                    </p>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <input
+                        ref={externalFileInputRef}
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          void handleExternalFilesSelected(e.target.files)
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!formData.projectId || externalBusy}
+                        onClick={() => externalFileInputRef.current?.click()}
+                      >
+                        <Upload size={14} className="mr-2" />
+                        {externalBusy ? 'Procesando...' : 'Subir archivos'}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -522,9 +797,9 @@ export default function CreatePage() {
               <div className="bg-muted/40 border border-border rounded-lg p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold">Generador IA (3 variantes)</p>
-                  <Button type="button" size="sm" onClick={generateAI}>
+                  <Button type="button" size="sm" onClick={generateAI} disabled={aiBusy}>
                     <Sparkles size={14} className="mr-2" />
-                    Generar
+                    {aiBusy ? 'Generando...' : 'Generar'}
                   </Button>
                 </div>
                 {aiVariants.length > 0 && (
@@ -646,6 +921,41 @@ export default function CreatePage() {
             <h3 className="font-semibold">Resumen</h3>
             <p className="text-xs text-muted-foreground">Proyecto</p>
             <p className="text-sm font-semibold">{selectedProjectName}</p>
+            {selectedProject ? (
+              <>
+                <p className="text-xs text-muted-foreground">Slug</p>
+                <p className="text-sm font-semibold">{selectedProject.slug || 'No definido'}</p>
+
+                <p className="text-xs text-muted-foreground">Tipo de operacion</p>
+                <p className="text-sm font-semibold">{selectedProject.tipoOperacion || 'No definido'}</p>
+
+                <p className="text-xs text-muted-foreground">Estado del proyecto</p>
+                <p className="text-sm font-semibold">{selectedProject.estado || 'No definido'}</p>
+
+                <p className="text-xs text-muted-foreground">Ubicacion</p>
+                <p className="text-sm font-semibold">{selectedProject.ubicacionTexto || 'No definida'}</p>
+
+                <p className="text-xs text-muted-foreground">Area total</p>
+                <p className="text-sm font-semibold">{selectedProject.areaTotalM2 || 'No definido'} m²</p>
+
+                <p className="text-xs text-muted-foreground">Precio S/.</p>
+                <p className="text-sm font-semibold">{selectedProject.precioSoles || 'No definido'}</p>
+
+                <p className="text-xs text-muted-foreground">Precio USD</p>
+                <p className="text-sm font-semibold">{selectedProject.precioDolares || 'No definido'}</p>
+
+                <p className="text-xs text-muted-foreground">Visitas / Favoritos</p>
+                <p className="text-sm font-semibold">{selectedProject.numVisitas ?? 0} / {selectedProject.numFavoritos ?? 0}</p>
+
+                <p className="text-xs text-muted-foreground">Posts / Media / Cuentas</p>
+                <p className="text-sm font-semibold">
+                  {selectedProject.counts?.posts ?? 0} / {selectedProject.counts?.mediaAssets ?? 0} / {selectedProject.counts?.socialAccounts ?? 0}
+                </p>
+
+                <p className="text-xs text-muted-foreground">Descripcion del proyecto</p>
+                <p className="text-sm font-semibold whitespace-pre-wrap">{selectedProject.description || 'No definida'}</p>
+              </>
+            ) : null}
 
             <p className="text-xs text-muted-foreground">Titulo</p>
             <p className="text-sm font-semibold">{formData.title || 'No definido'}</p>

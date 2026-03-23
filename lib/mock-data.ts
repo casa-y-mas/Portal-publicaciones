@@ -15,7 +15,8 @@ export interface RecurrenceData {
   type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
   endType?: 'never' | 'date'
   endDate?: string
-  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+  endTime?: string
+  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'minutes'
   customInterval?: number
   customWeekDays?: number[]
   customMonthDay?: number

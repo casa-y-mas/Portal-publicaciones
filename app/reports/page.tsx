@@ -3,12 +3,14 @@ import { WeeklyReportPanel } from '@/components/dashboard/weekly-report-panel'
 import { getReportSummary } from '@/lib/dashboard-data'
 import { getWeeklyExecutiveReport } from '@/lib/executive-reports'
 import { getMetaAnalyticsSummary } from '@/lib/meta-analytics'
+import { getPostPerformanceSummary } from '@/lib/post-performance'
 
 export default async function ReportsPage() {
-  const [reportSummary, metaSummary, weeklyReport] = await Promise.all([
+  const [reportSummary, metaSummary, weeklyReport, postPerformance] = await Promise.all([
     getReportSummary(),
     getMetaAnalyticsSummary(7),
     getWeeklyExecutiveReport(),
+    getPostPerformanceSummary(30),
   ])
 
   return (
@@ -123,6 +125,98 @@ export default async function ReportsPage() {
               <p className="text-sm text-muted-foreground">Aun no hay actividad suficiente para este periodo.</p>
             )}
           </div>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-5 mt-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <h3 className="font-semibold">Estadisticas por publicacion (ultimos {postPerformance.periodDays} dias)</h3>
+          <span className="text-xs rounded-full border border-border px-2 py-1 text-muted-foreground">
+            Nivel interno
+          </span>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-3 mb-4">
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Total publicaciones</p>
+            <p className="text-xl font-bold">{postPerformance.totals.totalPosts}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Publicadas</p>
+            <p className="text-xl font-bold">{postPerformance.totals.published}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Fallidas</p>
+            <p className="text-xl font-bold">{postPerformance.totals.failed}</p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-xs text-muted-foreground">Tasa promedio de exito</p>
+            <p className="text-xl font-bold">{postPerformance.totals.avgSuccessRate}%</p>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-4 mb-5">
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-sm font-semibold mb-3">Segmentacion por proyecto</p>
+            <div className="space-y-2">
+              {postPerformance.byProject.slice(0, 8).map((item) => (
+                <div key={item.projectId} className="text-xs flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground truncate">{item.projectName}</span>
+                  <span className="font-semibold">{item.total} • {item.published} ok • {item.failed} fail</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-sm font-semibold mb-3">Segmentacion por red</p>
+            <div className="space-y-2">
+              {postPerformance.byPlatform.slice(0, 8).map((item) => (
+                <div key={item.platform} className="text-xs flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground capitalize">{item.platform}</span>
+                  <span className="font-semibold">{item.total} • {item.published} ok • {item.failed} fail</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground border-b border-border">
+                <th className="py-2 pr-3">Publicacion</th>
+                <th className="py-2 pr-3">Proyecto</th>
+                <th className="py-2 pr-3">Fecha</th>
+                <th className="py-2 pr-3">Redes</th>
+                <th className="py-2 pr-3">Exito</th>
+                <th className="py-2 pr-3">Nivel</th>
+              </tr>
+            </thead>
+            <tbody>
+              {postPerformance.topPosts.map((item) => (
+                <tr key={item.id} className="border-b border-border/60">
+                  <td className="py-2 pr-3">
+                    <p className="font-semibold">{item.title}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{item.status}</p>
+                  </td>
+                  <td className="py-2 pr-3">{item.projectName}</td>
+                  <td className="py-2 pr-3">{new Date(item.publishAt).toLocaleString()}</td>
+                  <td className="py-2 pr-3">{item.platforms.join(', ') || 'N/D'}</td>
+                  <td className="py-2 pr-3">
+                    {item.successRate}% ({item.successCount}/{item.executions})
+                  </td>
+                  <td className="py-2 pr-3 capitalize">{item.level}</td>
+                </tr>
+              ))}
+              {postPerformance.topPosts.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                    Aun no hay publicaciones suficientes para calcular desempeno por post.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

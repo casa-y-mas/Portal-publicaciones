@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
@@ -36,6 +36,15 @@ const platformColor: Record<string, string> = {
   'youtube shorts': '#ef4444',
   x: '#6b7280',
   linkedin: '#0ea5e9',
+}
+
+const platformIconText: Record<string, string> = {
+  instagram: 'IG',
+  facebook: 'FB',
+  tiktok: 'TT',
+  'youtube shorts': 'YT',
+  x: 'X',
+  linkedin: 'in',
 }
 
 const statusAccent: Record<string, string> = {
@@ -254,9 +263,30 @@ export function CalendarView({ view, filters }: CalendarViewProps) {
                 day: 'Dia',
               }}
               eventContent={(eventInfo) => (
-                <div className="fc-event-rich">
-                  <p className="fc-event-title">{eventInfo.event.title}</p>
-                  <p className="fc-event-meta">{(eventInfo.event.extendedProps.platforms as string[] | undefined)?.join(' • ')}</p>
+                <div className="fc-event-rich h-full w-full flex items-center justify-center">
+                  {(() => {
+                    const platforms = (eventInfo.event.extendedProps.platforms as string[] | undefined) ?? []
+                    const normalized = platforms.map((p) => normalize(p)).filter(Boolean)
+                    const shown = normalized.slice(0, 2)
+                    return (
+                      <div className="flex items-center gap-1">
+                        {shown.map((p) => {
+                          const bg = platformColor[p] ?? 'hsl(var(--primary))'
+                          return (
+                            <span
+                              key={`${eventInfo.event.id}-${p}`}
+                              className="inline-flex items-center justify-center text-[10px] font-semibold rounded-md px-1.5 h-5"
+                              style={{ backgroundColor: bg, color: '#fff' }}
+                              aria-label={`Publicacion en ${p}`}
+                              title={p}
+                            >
+                              {platformIconText[p] ?? p.slice(0, 2).toUpperCase()}
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             />

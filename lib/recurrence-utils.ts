@@ -1,9 +1,10 @@
-﻿export interface RecurrenceInfo {
+export interface RecurrenceInfo {
   enabled: boolean
   type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
   endType?: 'never' | 'date'
   endDate?: string
-  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+  endTime?: string
+  customFrequency?: 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'minutes'
   customInterval?: number
   customWeekDays?: number[]
   customMonthDay?: number
@@ -45,7 +46,9 @@ export function getRecurrenceDates(startDate: Date, recurrence: RecurrenceInfo, 
   let currentDate = new Date(startDate)
   const endLimit =
     recurrence.endType === 'date' && recurrence.endDate
-      ? new Date(recurrence.endDate)
+      ? recurrence.endTime
+        ? new Date(`${recurrence.endDate}T${recurrence.endTime}`)
+        : new Date(`${recurrence.endDate}T23:59`)
       : new Date(startDate.getFullYear() + 1, startDate.getMonth(), startDate.getDate())
 
   let iterations = 0
@@ -83,6 +86,9 @@ export function getRecurrenceDates(startDate: Date, recurrence: RecurrenceInfo, 
             break
           case 'daily':
             nextDate.setDate(nextDate.getDate() + interval)
+            break
+          case 'minutes':
+            nextDate.setTime(nextDate.getTime() + interval * 60 * 1000)
             break
           case 'weekly': {
             const weekly = nextWeeklyCustomDate(nextDate, recurrence.customWeekDays || [], interval)
@@ -151,8 +157,16 @@ export function getRecurrenceLabel(recurrence: RecurrenceInfo): string {
       break
     case 'custom': {
       const interval = recurrence.customInterval || 1
-      const frequency = recurrence.customFrequency || 'daily'
-      label = `Cada ${interval} ${frequency}`
+      const frequencyKey = recurrence.customFrequency || 'daily'
+      const frequencyLabel: Record<string, string> = {
+        hourly: 'horas',
+        daily: 'dias',
+        weekly: 'semanas',
+        monthly: 'meses',
+        yearly: 'anios',
+        minutes: 'minutos',
+      }
+      label = `Cada ${interval} ${frequencyLabel[frequencyKey] ?? frequencyKey}`
       break
     }
     default:
@@ -160,7 +174,7 @@ export function getRecurrenceLabel(recurrence: RecurrenceInfo): string {
   }
 
   if (recurrence.endType === 'date' && recurrence.endDate) {
-    return `${label} hasta ${recurrence.endDate}`
+    return `${label} hasta ${recurrence.endDate}${recurrence.endTime ? ` ${recurrence.endTime}` : ''}`
   }
 
   return recurrence.endType === 'never' ? `${label} sin fin` : label

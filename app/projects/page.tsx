@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { Edit2, Image as ImageIcon, Plus, Trash2 } from 'lucide-react'
+import { Edit2, Eye, EyeOff, Heart, Image as ImageIcon, Plus, Trash2 } from 'lucide-react'
 
 import { AppModal } from '@/components/base/app-modal'
 import { Breadcrumbs } from '@/components/breadcrumbs'
@@ -12,10 +12,21 @@ import { Input } from '@/components/ui/input'
 interface ProjectItem {
   id: string
   name: string
+  slug: string
+  tipoOperacion: string
   color: string
   description: string | null
   createdAt: string
   updatedAt: string
+  estado: string
+  dueñoNombre: string | null
+  ubicacionTexto: string | null
+  portada: string | null
+  numVisitas: number
+  numFavoritos: number
+  areaTotalM2: string | null
+  precioSoles: string | null
+  precioDolares: string | null
   _count: {
     posts: number
     mediaAssets: number
@@ -45,6 +56,7 @@ const emptyForm: ProjectFormState = {
   color: '#3B82F6',
   description: '',
 }
+const projectsReadOnly = true
 
 export default function ProjectsPage() {
   const [items, setItems] = useState<ProjectItem[]>([])
@@ -58,6 +70,7 @@ export default function ProjectsPage() {
   const [mediaProject, setMediaProject] = useState<ProjectItem | null>(null)
   const [mediaItems, setMediaItems] = useState<ProjectMediaItem[]>([])
   const [loadingMedia, setLoadingMedia] = useState(false)
+  const [priceProject, setPriceProject] = useState<ProjectItem | null>(null)
 
   const loadProjects = async () => {
     setLoading(true)
@@ -177,6 +190,13 @@ export default function ProjectsPage() {
     return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const formatPriceValue = (value: string | null) => {
+    if (!value) return 'A cotizar'
+    const num = Number(value)
+    if (Number.isNaN(num) || num <= 0) return 'A cotizar'
+    return value
+  }
+
   const openProjectMedia = async (project: ProjectItem) => {
     setMediaProject(project)
     setMediaItems([])
@@ -206,9 +226,9 @@ export default function ProjectsPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="view-title">Proyectos</h1>
-          <p className="view-subtitle">Gestion completa de proyectos inmobiliarios conectados a publicaciones y media.</p>
+          <p className="view-subtitle">Listado sincronizado desde sistema externo para publicaciones y media.</p>
         </div>
-        <Button onClick={openCreateModal} disabled={loading}>
+        <Button onClick={openCreateModal} disabled={loading || projectsReadOnly}>
           <Plus size={16} className="mr-2" />
           Nuevo proyecto
         </Button>
@@ -219,59 +239,87 @@ export default function ProjectsPage() {
           <p className="text-sm text-destructive">{error}</p>
         </div>
       ) : null}
+      {projectsReadOnly ? (
+        <div className="surface-muted p-3 mb-4">
+          <p className="text-sm text-muted-foreground">
+            Los proyectos se cargan desde API externa. Crear, editar y eliminar esta deshabilitado en este portal.
+          </p>
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="surface-card p-12 text-center text-muted-foreground">Cargando proyectos...</div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-4">
           {items.map((project) => (
-            <div key={project.id} className="surface-card p-5 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold text-lg">{project.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {project.description?.trim() || 'Sin descripcion'}
+            <div key={project.id} className="surface-card p-4 flex items-start gap-4">
+              <div className="relative w-[190px]">
+                {project.portada ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={project.portada}
+                    alt={project.name}
+                    className="w-full h-20 object-cover rounded-lg"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-20 rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-xs">
+                    Sin portada
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-primary font-semibold">{project.tipoOperacion}</p>
+                    <h3 className="text-sm font-semibold text-primary truncate">{project.name}</h3>
+                    {project.ubicacionTexto ? <p className="text-xs text-muted-foreground mt-1">{project.ubicacionTexto}</p> : null}
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <Button variant="secondary" size="sm" onClick={() => setPriceProject(project)}>
+                        Consultar Precio
+                      </Button>
+                      <p className="text-xs text-muted-foreground">{project.areaTotalM2 ?? '0'} m²</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1"> {project.estado}</p>
+                  </div>
+
+                  <div className="flex items-start gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Eye size={14} />
+                      <span>{project.numVisitas}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Heart size={14} className="text-rose-500" />
+                      <span>{project.numFavoritos}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-border/60">
+                  <p className="text-xs text-muted-foreground">
+                    Responsable: <span className="font-medium text-foreground">{project.dueñoNombre ?? 'Sin responsable'}</span>
                   </p>
-                </div>
-                <span
-                  className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-border px-2 text-xs font-semibold"
-                  style={{ backgroundColor: `${project.color}22`, color: project.color }}
-                >
-                  {project.color}
-                </span>
-              </div>
 
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="surface-muted p-2">
-                  <p className="text-[11px] text-muted-foreground">Posts</p>
-                  <p className="text-sm font-semibold">{project._count.posts}</p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => openEditModal(project)} disabled={projectsReadOnly}>
+                      <Edit2 size={14} className="mr-2" />
+                      Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openProjectMedia(project)}>
+                      <Eye size={14} className="mr-2" />
+                      Previsualizar
+                    </Button>
+                    <Button variant="ghost" size="sm" disabled>
+                      <EyeOff size={14} className="mr-2" />
+                      Esconder
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(project)} disabled={projectsReadOnly}>
+                      <Trash2 size={14} className="mr-2" />
+                      Eliminar
+                    </Button>
+                  </div>
                 </div>
-                <div className="surface-muted p-2">
-                  <p className="text-[11px] text-muted-foreground">Media</p>
-                  <p className="text-sm font-semibold">{project._count.mediaAssets}</p>
-                </div>
-                <div className="surface-muted p-2">
-                  <p className="text-[11px] text-muted-foreground">Cuentas</p>
-                  <p className="text-sm font-semibold">{project._count.socialAccounts}</p>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => openProjectMedia(project)}>
-                  <ImageIcon size={14} className="mr-2" />
-                  Media del proyecto
-                </Button>
-                <Button variant="secondary" size="sm" asChild>
-                  <Link href={`/library?projectId=${project.id}`}>Ver media</Link>
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => openEditModal(project)}>
-                  <Edit2 size={14} className="mr-2" />
-                  Editar
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleDelete(project)}>
-                  <Trash2 size={14} className="mr-2" />
-                  Eliminar
-                </Button>
               </div>
             </div>
           ))}
@@ -372,6 +420,42 @@ export default function ProjectsPage() {
             />
           </div>
         </div>
+      </AppModal>
+
+      <AppModal
+        open={Boolean(priceProject)}
+        onOpenChange={(open) => {
+          if (!open) setPriceProject(null)
+        }}
+        title={priceProject ? `Consultar precio - ${priceProject.name}` : 'Consultar precio'}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setPriceProject(null)}>
+              Cerrar
+            </Button>
+          </>
+        }
+      >
+        {priceProject ? (
+          <div className="space-y-4">
+            <div className="surface-muted p-4 rounded-lg">
+              <p className="text-xs text-muted-foreground">Area total</p>
+              <p className="text-lg font-semibold">{priceProject.areaTotalM2 ?? '0'} m²</p>
+              <p className="text-xs text-muted-foreground mt-2">Estado: {priceProject.estado}</p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Precio (S/.)</p>
+                <p className="text-sm font-semibold">{formatPriceValue(priceProject.precioSoles)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Precio (USD)</p>
+                <p className="text-sm font-semibold">{formatPriceValue(priceProject.precioDolares)}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </AppModal>
 
       <AppModal

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
@@ -15,13 +15,14 @@ export type RecurrenceType =
 
 type EndType = 'never' | 'date'
 
-type CustomFrequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+type CustomFrequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'minutes'
 
 export interface RecurrenceSettings {
   enabled: boolean
   type: RecurrenceType
   endType: EndType
   endDate?: string
+  endTime?: string
   customFrequency?: CustomFrequency
   customInterval?: number
   customWeekDays?: number[]
@@ -69,6 +70,7 @@ export function RecurrenceSettings({ value, onChange }: RecurrenceSettingsProps)
       weekly: 'semanas',
       monthly: 'meses',
       yearly: 'anios',
+      minutes: 'minutos',
     }
     return labels[value.customFrequency || 'daily']
   }, [value.customFrequency])
@@ -173,6 +175,7 @@ export function RecurrenceSettings({ value, onChange }: RecurrenceSettingsProps)
                   <option value="hourly">Cada hora</option>
                   <option value="daily">Diariamente</option>
                   <option value="weekly">Semanalmente</option>
+                  <option value="minutes">Cada minutos</option>
                   <option value="monthly">Mensualmente</option>
                   <option value="yearly">Anualmente</option>
                 </select>
@@ -277,6 +280,7 @@ export function RecurrenceSettings({ value, onChange }: RecurrenceSettingsProps)
                         onChange({
                           ...value,
                           endType: option.value,
+                    endTime: option.value === 'date' ? value.endTime || '23:59' : undefined,
                         })
                         setShowEndMenu(false)
                       }}
@@ -303,6 +307,20 @@ export function RecurrenceSettings({ value, onChange }: RecurrenceSettingsProps)
                   })
                 }
               />
+
+              <div className="mt-4">
+                <label className="text-xs font-semibold text-muted-foreground block mb-2">Hora en que debe finalizar</label>
+                <Input
+                  type="time"
+                  value={value.endTime || ''}
+                  onChange={(e) =>
+                    onChange({
+                      ...value,
+                      endTime: e.target.value,
+                    })
+                  }
+                />
+              </div>
             </div>
           )}
         </div>
