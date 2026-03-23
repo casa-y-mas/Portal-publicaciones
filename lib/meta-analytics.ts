@@ -68,6 +68,62 @@ async function fetchGraph(url: URL) {
   return json
 }
 
+async function fetchInsightMetricValue(input: {
+  id: string
+  token: string
+  metric: string
+  period?: 'day'
+  since?: Date
+  until?: Date
+}) {
+  const url = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(input.id)}/insights`)
+  url.searchParams.set('metric', input.metric)
+  if (input.period) {
+    url.searchParams.set('period', input.period)
+  }
+  if (input.since) {
+    url.searchParams.set('since', Math.floor(input.since.getTime() / 1000).toString())
+  }
+  if (input.until) {
+    url.searchParams.set('until', Math.floor(input.until.getTime() / 1000).toString())
+  }
+  url.searchParams.set('access_token', input.token)
+  const json = await fetchGraph(url)
+  const data = (json as { data?: unknown }).data
+  return asNumber(readInsightValue<number>(data, input.metric))
+}
+
+async function fetchFirstSupportedMetric(input: {
+  id: string
+  token: string
+  metrics: string[]
+  period?: 'day'
+  since?: Date
+  until?: Date
+  warnings: string[]
+  warningPrefix: string
+}) {
+  for (const metric of input.metrics) {
+    try {
+      const value = await fetchInsightMetricValue({
+        id: input.id,
+        token: input.token,
+        metric,
+        period: input.period,
+        since: input.since,
+        until: input.until,
+      })
+      return value
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Metrica no disponible.'
+      if (!message.toLowerCase().includes('valid insights metric')) {
+        input.warnings.push(`${input.warningPrefix} (${metric}): ${message}`)
+      }
+    }
+  }
+  return 0
+}
+
 export async function getMetaAnalyticsSummary(daysInput = 7): Promise<MetaAnalyticsSummary> {
   const periodDays = clampDays(daysInput)
   const mode = (process.env.PUBLISHER_MODE?.trim().toLowerCase() || 'mock') as 'live' | 'mock'
@@ -154,18 +210,36 @@ export async function getMetaAnalyticsSummary(daysInput = 7): Promise<MetaAnalyt
           continue
         }
 
-        const url = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(account.pageId)}/insights`)
-        url.searchParams.set('metric', 'page_impressions,page_post_engagements,page_impressions_unique')
-        url.searchParams.set('period', 'day')
-        url.searchParams.set('since', Math.floor(since.getTime() / 1000).toString())
-        url.searchParams.set('until', Math.floor(now.getTime() / 1000).toString())
-        url.searchParams.set('access_token', token)
-
-        const json = await fetchGraph(url)
-        const data = (json as { data?: unknown }).data
-        const impressions = asNumber(readInsightValue<number>(data, 'page_impressions'))
-        const engagements = asNumber(readInsightValue<number>(data, 'page_post_engagements'))
-        const reach = asNumber(readInsightValue<number>(data, 'page_impressions_unique'))
+        const impressions = await fetchFirstSupportedMetric({
+          id: account.pageId,
+          token,
+          metrics: ['page_impressions'],
+          period: 'day',
+          since,
+          until: now,
+          warnings,
+          warningPrefix: `Cuenta ${account.id}: sin metrica valida de impresiones en Facebook`,
+        })
+        const engagements = await fetchFirstSupportedMetric({
+          id: account.pageId,
+          token,
+          metrics: ['page_post_engagements', 'page_engaged_users'],
+          period: 'day',
+          since,
+          until: now,
+          warnings,
+          warningPrefix: `Cuenta ${account.id}: sin metrica valida de interacciones en Facebook`,
+        })
+        const reach = await fetchFirstSupportedMetric({
+          id: account.pageId,
+          token,
+          metrics: ['page_impressions_unique', 'page_posts_impressions_unique'],
+          period: 'day',
+          since,
+          until: now,
+          warnings,
+          warningPrefix: `Cuenta ${account.id}: sin metrica valida de alcance en Facebook`,
+        })
 
         byPlatform.facebook.impressions += impressions
         byPlatform.facebook.engagements += engagements
@@ -179,18 +253,36 @@ export async function getMetaAnalyticsSummary(daysInput = 7): Promise<MetaAnalyt
           continue
         }
 
-        const insightsUrl = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(account.instagramUserId)}/insights`)
-        insightsUrl.searchParams.set('metric', 'impressions,reach,profile_views')
-        insightsUrl.searchParams.set('period', 'day')
-        insightsUrl.searchParams.set('since', Math.floor(since.getTime() / 1000).toString())
-        insightsUrl.searchParams.set('until', Math.floor(now.getTime() / 1000).toString())
-        insightsUrl.searchParams.set('access_token', token)
-        const insightsJson = await fetchGraph(insightsUrl)
-        const insightsData = (insightsJson as { data?: unknown }).data
-
-        const impressions = asNumber(readInsightValue<number>(insightsData, 'impressions'))
-        const reach = asNumber(readInsightValue<number>(insightsData, 'reach'))
-        const profileViews = asNumber(readInsightValue<number>(insightsData, 'profile_views'))
+        const impressions = await fetchFirstSupportedMetric({
+          id: account.instagramUserId,
+          token,
+          metrics: ['impressions'],
+          period: 'day',
+          since,
+          until: now,
+          warnings,
+          warningPrefix: `Cuenta ${account.id}: sin metrica valida de impresiones en Instagram`,
+        })
+        const reach = await fetchFirstSupportedMetric({
+          id: account.instagramUserId,
+          token,
+          metrics: ['reach'],
+          period: 'day',
+          since,
+          until: now,
+          warnings,
+          warningPrefix: `Cuenta ${account.id}: sin metrica valida de alcance en Instagram`,
+        })
+        const profileViews = await fetchFirstSupportedMetric({
+          id: account.instagramUserId,
+          token,
+          metrics: ['profile_views', 'profile_visits'],
+          period: 'day',
+          since,
+          until: now,
+          warnings,
+          warningPrefix: `Cuenta ${account.id}: sin metrica valida de visitas de perfil en Instagram`,
+        })
 
         const mediaUrl = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(account.instagramUserId)}/media`)
         mediaUrl.searchParams.set('fields', 'like_count,comments_count,timestamp')
