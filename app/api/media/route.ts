@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { resolveProjectRecord } from '@/lib/project-resolution'
 
 const mediaUrlSchema = z.string().trim().min(1).refine(
   (value) => value.startsWith('/') || /^https?:\/\//i.test(value),
@@ -65,11 +66,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Invalid payload', errors: parsed.error.flatten() }, { status: 400 })
   }
 
-  const projectExists = await prisma.project.findUnique({
-    where: { id: parsed.data.projectId },
-    select: { id: true },
-  })
-  if (!projectExists) {
+  const project = await resolveProjectRecord(parsed.data.projectId)
+  if (!project) {
     return NextResponse.json({ message: 'Project not found' }, { status: 404 })
   }
 
@@ -85,7 +83,7 @@ export async function POST(request: Request) {
       mimeType: parsed.data.mimeType,
       type: parsed.data.type,
       sizeBytes: parsed.data.sizeBytes,
-      projectId: parsed.data.projectId,
+      projectId: project.id,
       tagsJson: parsed.data.tags,
       uploadedById: uploader?.id ?? null,
     },

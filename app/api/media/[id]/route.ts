@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { resolveProjectRecord } from '@/lib/project-resolution'
 
 const mediaUrlSchema = z.string().trim().min(1).refine(
   (value) => value.startsWith('/') || /^https?:\/\//i.test(value),
@@ -60,14 +61,13 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ message: 'Media not found' }, { status: 404 })
   }
 
+  let resolvedProjectId: string | undefined
   if (parsed.data.projectId) {
-    const projectExists = await prisma.project.findUnique({
-      where: { id: parsed.data.projectId },
-      select: { id: true },
-    })
-    if (!projectExists) {
+    const project = await resolveProjectRecord(parsed.data.projectId)
+    if (!project) {
       return NextResponse.json({ message: 'Project not found' }, { status: 404 })
     }
+    resolvedProjectId = project.id
   }
 
   const updated = await prisma.mediaAsset.update({
@@ -78,7 +78,7 @@ export async function PATCH(request: Request, { params }: Params) {
       ...(parsed.data.mimeType ? { mimeType: parsed.data.mimeType } : {}),
       ...(parsed.data.type ? { type: parsed.data.type } : {}),
       ...(parsed.data.sizeBytes ? { sizeBytes: parsed.data.sizeBytes } : {}),
-      ...(parsed.data.projectId ? { projectId: parsed.data.projectId } : {}),
+      ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
       ...(parsed.data.tags ? { tagsJson: parsed.data.tags } : {}),
     },
     include: {

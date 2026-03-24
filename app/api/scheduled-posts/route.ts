@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { resolveProjectRecord } from '@/lib/project-resolution'
 
 const SUBTITLE_MARKER = '[SUBTITULO]'
 
@@ -138,13 +139,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Payload invalido.', errors: parsed.error.flatten() }, { status: 400 })
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: parsed.data.projectId },
-    select: { id: true },
-  })
+  const project = await resolveProjectRecord(parsed.data.projectId)
   if (!project) {
     return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
   }
+  const resolvedProjectId = project.id
 
   // Usar `raw` para evitar que un schema viejo/estricto de Zod ignore el campo,
   // y así garantizar que guardamos el array enviado desde el frontend.
@@ -173,7 +172,7 @@ export async function POST(request: Request) {
     if (includesFacebook(parsed.data.platforms)) {
       const facebookAccount = await prisma.socialAccount.findFirst({
         where: {
-          projectId: parsed.data.projectId,
+          projectId: resolvedProjectId,
           platform: 'facebook',
           status: { in: ['connected', 'token_expiring'] },
         },
@@ -208,7 +207,7 @@ export async function POST(request: Request) {
 
       const instagramAccount = await prisma.socialAccount.findFirst({
         where: {
-          projectId: parsed.data.projectId,
+          projectId: resolvedProjectId,
           platform: 'instagram',
           status: { in: ['connected', 'token_expiring'] },
         },
@@ -243,7 +242,7 @@ export async function POST(request: Request) {
     if (media.length !== mediaAssetIds.length) {
       return NextResponse.json({ message: 'Una o mas medias no fueron encontradas.' }, { status: 404 })
     }
-    const wrongProject = media.find((item) => item.projectId !== parsed.data.projectId)
+    const wrongProject = media.find((item) => item.projectId !== resolvedProjectId)
     if (wrongProject) {
       return NextResponse.json({ message: 'La media debe pertenecer al mismo proyecto.' }, { status: 400 })
     }
@@ -258,7 +257,7 @@ export async function POST(request: Request) {
         contentType: parsed.data.contentType,
         status: parsed.data.status,
         publishAt,
-        projectId: parsed.data.projectId,
+        projectId: resolvedProjectId,
         creatorId: session.user.id,
         mediaAssetId,
         thumbnail: parsed.data.thumbnail || null,

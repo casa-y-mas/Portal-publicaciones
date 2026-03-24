@@ -2,6 +2,7 @@ import { AccountStatus, PostStatus, Prisma } from '@prisma/client'
 
 import { createActivityLog, createNotification } from '@/lib/operations-feed'
 import { prisma } from '@/lib/prisma'
+import { resolveProjectRecord } from '@/lib/project-resolution'
 
 type PlatformName = 'instagram' | 'facebook'
 const SUBTITLE_MARKER = '[SUBTITULO]'
@@ -1045,24 +1046,7 @@ export async function getPublishingQueueSnapshot() {
 }
 
 export async function getProjectPublishingReadiness(projectId: string): Promise<ProjectPublishingReadiness> {
-  const [project, accounts] = await Promise.all([
-    prisma.project.findUnique({
-      where: { id: projectId },
-      select: { id: true },
-    }),
-    prisma.socialAccount.findMany({
-      where: { projectId },
-      select: {
-        id: true,
-        platform: true,
-        status: true,
-        pageId: true,
-        instagramUserId: true,
-        accessToken: true,
-      },
-      orderBy: { updatedAt: 'desc' },
-    }),
-  ])
+  const project = await resolveProjectRecord(projectId)
 
   if (!project) {
     return {
@@ -1087,6 +1071,19 @@ export async function getProjectPublishingReadiness(projectId: string): Promise<
       messageInstagram: 'Proyecto no encontrado.',
     }
   }
+
+  const accounts = await prisma.socialAccount.findMany({
+      where: { projectId: project.id },
+      select: {
+        id: true,
+        platform: true,
+        status: true,
+        pageId: true,
+        instagramUserId: true,
+        accessToken: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    })
 
   const mode = process.env.PUBLISHER_MODE?.trim().toLowerCase() || 'mock'
   const appUrl = process.env.APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim() || ''
@@ -1137,7 +1134,7 @@ export async function getProjectPublishingReadiness(projectId: string): Promise<
   else if (!appUrlHttpsInLive) messageInstagram = 'En modo live, APP_URL debe usar HTTPS accesible desde Meta.'
 
   return {
-    projectId,
+    projectId: project.id,
     mode,
     readyForFacebook,
     readyForInstagram,

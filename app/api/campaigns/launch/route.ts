@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { getCampaignBlueprint } from '@/lib/campaign-blueprints'
 import { prisma } from '@/lib/prisma'
+import { resolveProjectRecord } from '@/lib/project-resolution'
 
 const launchCampaignSchema = z.object({
   projectId: z.string().min(1),
@@ -45,10 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Plantilla de campana no encontrada.' }, { status: 404 })
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: parsed.data.projectId },
-    select: { id: true, name: true },
-  })
+  const project = await resolveProjectRecord(parsed.data.projectId)
   if (!project) {
     return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
   }
@@ -66,7 +64,7 @@ export async function POST(request: Request) {
     if (!media) {
       return NextResponse.json({ message: 'Archivo multimedia no encontrado.' }, { status: 404 })
     }
-    if (media.projectId !== parsed.data.projectId) {
+    if (media.projectId !== project.id) {
       return NextResponse.json({ message: 'La media debe pertenecer al mismo proyecto.' }, { status: 400 })
     }
   }
@@ -94,7 +92,7 @@ export async function POST(request: Request) {
             contentType: step.contentType as ContentType,
             status: parsed.data.status as PostStatus,
             publishAt,
-            projectId: parsed.data.projectId,
+            projectId: project.id,
             creatorId: session.user.id,
             mediaAssetId,
             platformsJson: parsed.data.platforms,

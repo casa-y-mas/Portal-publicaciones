@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
+import { resolveProjectRecord } from '@/lib/project-resolution'
 
 const createSocialAccountSchema = z.object({
   platform: z.nativeEnum(AccountPlatform),
@@ -67,10 +68,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: parsed.data.projectId },
-      select: { id: true },
-    })
+    const project = await resolveProjectRecord(parsed.data.projectId)
 
     if (!project) {
       return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
@@ -83,7 +81,7 @@ export async function POST(request: Request) {
         type: parsed.data.type,
         status: parsed.data.status ?? AccountStatus.connected,
         expiresAt: parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null,
-        projectId: parsed.data.projectId,
+        projectId: project.id,
       },
       include: {
         project: {
