@@ -5,7 +5,9 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { syncProjectMedia } from '@/lib/project-media'
 import { resolveProjectRecord } from '@/lib/project-resolution'
+import { ensureProjectSocialAccounts } from '@/lib/project-social-accounts'
 
 const SUBTITLE_MARKER = '[SUBTITULO]'
 
@@ -145,6 +147,10 @@ export async function POST(request: Request) {
   }
   const resolvedProjectId = project.id
 
+  if (parsed.data.platforms.length > 0) {
+    await ensureProjectSocialAccounts(resolvedProjectId)
+  }
+
   // Usar `raw` para evitar que un schema viejo/estricto de Zod ignore el campo,
   // y así garantizar que guardamos el array enviado desde el frontend.
   const incomingMediaAssetIds = Array.isArray((raw as any)?.mediaAssetIds)
@@ -152,8 +158,13 @@ export async function POST(request: Request) {
     : []
   const mediaAssetIdFromLegacy = parsed.data.mediaAssetId || ''
   const mediaAssetIds = Array.from(new Set([mediaAssetIdFromLegacy, ...incomingMediaAssetIds].filter(Boolean)))
-  const mediaAssetId = mediaAssetIds[0] || null
   const publishAt = new Date(parsed.data.publishAt)
+
+  if (mediaAssetIds.length > 0) {
+    await syncProjectMedia(parsed.data.projectId)
+  }
+
+  const mediaAssetId = mediaAssetIds[0] || null
 
   if (Number.isNaN(publishAt.getTime())) {
     return NextResponse.json({ message: 'Fecha/hora invalida.' }, { status: 400 })

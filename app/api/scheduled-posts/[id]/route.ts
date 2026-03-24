@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { ensureProjectSocialAccounts } from '@/lib/project-social-accounts'
 
 const SUBTITLE_MARKER = '[SUBTITULO]'
 
@@ -172,6 +173,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const nextPublishAt = parsed.data.publishAt ? new Date(parsed.data.publishAt) : existing.publishAt
   const nextPlatforms = parsePlatforms(existing.platformsJson)
   const nextMediaAssetId = existing.mediaAssetId
+
+  if (nextPlatforms.length > 0) {
+    await ensureProjectSocialAccounts(existing.projectId)
+  }
 
   if (nextStatus === PostStatus.scheduled) {
     if (nextPublishAt.getTime() < Date.now()) {

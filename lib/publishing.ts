@@ -2,6 +2,8 @@ import { AccountStatus, PostStatus, Prisma } from '@prisma/client'
 
 import { createActivityLog, createNotification } from '@/lib/operations-feed'
 import { prisma } from '@/lib/prisma'
+import { ensureProjectSocialAccounts } from '@/lib/project-social-accounts'
+import { syncProjectMedia } from '@/lib/project-media'
 import { resolveProjectRecord } from '@/lib/project-resolution'
 
 type PlatformName = 'instagram' | 'facebook'
@@ -595,16 +597,63 @@ export async function processScheduledPublications(
 
   for (const post of duePosts) {
     try {
+    await ensureProjectSocialAccounts(post.projectId)
+    await syncProjectMedia(post.projectId).catch(() => null)
+    const refreshedPost = await prisma.scheduledPost.findUnique({
+      where: { id: post.id },
+      include: {
+        mediaAsset: {
+          select: {
+            id: true,
+            url: true,
+            fileName: true,
+            type: true,
+          },
+        },
+        mediaAssets: {
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            mediaAsset: {
+              select: {
+                id: true,
+                url: true,
+                fileName: true,
+                type: true,
+              },
+            },
+          },
+        },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            socialAccounts: {
+              select: {
+                id: true,
+                platform: true,
+                username: true,
+                status: true,
+                accessToken: true,
+                pageId: true,
+                instagramUserId: true,
+                lastError: true,
+              },
+            },
+          },
+        },
+      },
+    })
+    const activePost = refreshedPost ?? post
     const platforms = parsePlatforms(post.platformsJson)
-    const parsedCaption = parseStoredCaption(post.caption)
+    const parsedCaption = parseStoredCaption(activePost.caption)
     const publishCaption = composePublishCaption({
-      title: post.title,
+      title: activePost.title,
       subtitle: parsedCaption.subtitle,
       caption: parsedCaption.caption,
     })
 
-    const orderedAssets = post.mediaAssets.map((entry) => entry.mediaAsset).filter((asset) => Boolean(asset?.url))
-    const mediaCandidates = orderedAssets.length > 0 ? orderedAssets : (post.mediaAsset?.url ? [post.mediaAsset] : [])
+    const orderedAssets = activePost.mediaAssets.map((entry) => entry.mediaAsset).filter((asset) => Boolean(asset?.url))
+    const mediaCandidates = orderedAssets.length > 0 ? orderedAssets : (activePost.mediaAsset?.url ? [activePost.mediaAsset] : [])
     const imageUrls = mediaCandidates.filter((asset) => asset.type === 'image').map((asset) => asset.url)
     const primary = mediaCandidates[0]
 
@@ -698,7 +747,7 @@ export async function processScheduledPublications(
         continue
       }
 
-      const account = post.project.socialAccounts.find((item) => item.platform === platform)
+      const account = activePost.project.socialAccounts.find((item) => item.platform === platform)
       if (!account) {
         platformResults.push({
           platform: platformLabel,
@@ -1072,6 +1121,7 @@ export async function getProjectPublishingReadiness(projectId: string): Promise<
     }
   }
 
+  await ensureProjectSocialAccounts(project.id)
   const accounts = await prisma.socialAccount.findMany({
       where: { projectId: project.id },
       select: {
