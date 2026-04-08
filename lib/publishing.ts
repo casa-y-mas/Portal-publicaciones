@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { ensureProjectSocialAccounts } from '@/lib/project-social-accounts'
 import { syncProjectMedia } from '@/lib/project-media'
 import { resolveProjectRecord } from '@/lib/project-resolution'
+import { getNextRecurrenceDate, type RecurrenceInfo } from '@/lib/recurrence-utils'
 
 type PlatformName = 'instagram' | 'facebook'
 const SUBTITLE_MARKER = '[SUBTITULO]'
@@ -62,6 +63,30 @@ export interface ProjectPublishingReadiness {
 function parsePlatforms(value: Prisma.JsonValue): string[] {
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string')
+}
+
+function parseRecurrence(value: Prisma.JsonValue | null): RecurrenceInfo | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const candidate = value as Record<string, unknown>
+  if (candidate.enabled !== true) return null
+
+  return {
+    enabled: true,
+    type: typeof candidate.type === 'string' ? (candidate.type as RecurrenceInfo['type']) : undefined,
+    endType: candidate.endType === 'date' ? 'date' : 'never',
+    endDate: typeof candidate.endDate === 'string' ? candidate.endDate : undefined,
+    endTime: typeof candidate.endTime === 'string' ? candidate.endTime : undefined,
+    customFrequency:
+      typeof candidate.customFrequency === 'string'
+        ? (candidate.customFrequency as RecurrenceInfo['customFrequency'])
+        : undefined,
+    customInterval: typeof candidate.customInterval === 'number' ? candidate.customInterval : undefined,
+    customWeekDays: Array.isArray(candidate.customWeekDays)
+      ? candidate.customWeekDays.filter((day): day is number => typeof day === 'number')
+      : undefined,
+    customMonthDay: typeof candidate.customMonthDay === 'number' ? candidate.customMonthDay : undefined,
+    customYearDate: typeof candidate.customYearDate === 'string' ? candidate.customYearDate : undefined,
+  }
 }
 
 function normalizePlatform(value: string): PlatformName | null {
@@ -645,6 +670,7 @@ export async function processScheduledPublications(
     })
     const activePost = refreshedPost ?? post
     const platforms = parsePlatforms(post.platformsJson)
+    const recurrence = parseRecurrence(activePost.recurrenceJson)
     const parsedCaption = parseStoredCaption(activePost.caption)
     const publishCaption = composePublishCaption({
       title: activePost.title,
@@ -956,7 +982,17 @@ export async function processScheduledPublications(
     }
 
     const hadAnySuccess = platformResults.some((entry) => Boolean(entry.ok))
-    const finalStatus = hadAnySuccess ? PostStatus.published : PostStatus.failed
+    const nextPublishAt =
+      hadAnySuccess && recurrence
+        ? getNextRecurrenceDate(activePost.publishAt, recurrence, now)
+        : null
+    const shouldRescheduleRecurringPost = Boolean(hadAnySuccess && nextPublishAt)
+    const finalStatus =
+      shouldRescheduleRecurringPost
+        ? PostStatus.scheduled
+        : hadAnySuccess
+          ? PostStatus.published
+          : PostStatus.failed
 
     const failureLines = platformResults
       .filter((entry) => !entry.ok)
@@ -967,8 +1003,20 @@ export async function processScheduledPublications(
       postId: post.id,
       status: finalStatus,
       lastPublishError: failureMessage,
-        lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
+      lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
     })
+
+    if (shouldRescheduleRecurringPost && nextPublishAt) {
+      await prisma.scheduledPost.update({
+        where: { id: post.id },
+        data: {
+          status: PostStatus.scheduled,
+          publishAt: nextPublishAt,
+          lastPublishError: null,
+          lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
+        },
+      })
+    }
 
     if (finalStatus === PostStatus.failed) {
       await Promise.all([
@@ -1002,18 +1050,29 @@ export async function processScheduledPublications(
         createActivityLog({
           level: 'success',
           category: 'publisher',
-          action: 'publish_success',
+          action: shouldRescheduleRecurringPost ? 'publish_success_rescheduled' : 'publish_success',
           targetType: 'scheduled_post',
           targetId: post.id,
-          summary: `Publicacion completada para ${post.title}.`,
-          detail: { platformResults },
+          summary: shouldRescheduleRecurringPost
+            ? `Publicacion completada y reprogramada para ${post.title}.`
+            : `Publicacion completada para ${post.title}.`,
+          detail: {
+            platformResults,
+            ...(nextPublishAt ? { nextPublishAt: nextPublishAt.toISOString() } : {}),
+          },
         }),
         createNotification({
           type: 'success',
-          title: 'Publicacion exitosa',
-          message: `"${post.title}" se proceso correctamente.`,
+          title: shouldRescheduleRecurringPost ? 'Publicacion recurrente ejecutada' : 'Publicacion exitosa',
+          message: shouldRescheduleRecurringPost
+            ? `"${post.title}" se publico y quedo reprogramada para ${nextPublishAt?.toLocaleString()}.`
+            : `"${post.title}" se proceso correctamente.`,
           href: '/publicaciones-programadas',
-          metadata: { postId: post.id, platformResults },
+          metadata: {
+            postId: post.id,
+            platformResults,
+            ...(nextPublishAt ? { nextPublishAt: nextPublishAt.toISOString() } : {}),
+          },
         }),
       ])
       published += 1
@@ -1021,7 +1080,9 @@ export async function processScheduledPublications(
         postId: post.id,
         title: post.title,
         finalStatus: 'published',
-        detail: 'Publicacion procesada correctamente.',
+        detail: shouldRescheduleRecurringPost
+          ? `Publicacion procesada correctamente. Siguiente ejecucion: ${nextPublishAt?.toISOString()}.`
+          : 'Publicacion procesada correctamente.',
         platformResults,
       })
     }
