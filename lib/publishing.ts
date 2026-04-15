@@ -68,7 +68,9 @@ function parsePlatforms(value: Prisma.JsonValue): string[] {
 function parseRecurrence(value: Prisma.JsonValue | null): RecurrenceInfo | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const candidate = value as Record<string, unknown>
-  if (candidate.enabled !== true) return null
+  const enabled =
+    candidate.enabled === true || candidate.enabled === 'true' || candidate.enabled === 1
+  if (!enabled) return null
 
   return {
     enabled: true,
@@ -556,64 +558,108 @@ export async function processScheduledPublications(
   const limit = options.limit ?? 10
   const targetPostId = options.targetPostId?.trim() || null
   const now = new Date()
-  const duePosts = await prisma.scheduledPost.findMany({
-    where: {
-      ...(targetPostId
-        ? {
-            id: targetPostId,
-            status: {
-              in: [PostStatus.scheduled, PostStatus.draft],
-            },
-          }
-        : {
-            status: PostStatus.scheduled,
-            publishAt: { lte: now },
-          }),
+
+  const publisherInclude = {
+    mediaAsset: {
+      select: {
+        id: true,
+        url: true,
+        fileName: true,
+        type: true,
+      },
     },
-    orderBy: { publishAt: 'asc' },
-    take: limit,
-    include: {
-      mediaAsset: {
-        select: {
-          id: true,
-          url: true,
-          fileName: true,
-          type: true,
-        },
-      },
-      mediaAssets: {
-        orderBy: { sortOrder: 'asc' },
-        select: {
-          mediaAsset: {
-            select: {
-              id: true,
-              url: true,
-              fileName: true,
-              type: true,
-            },
-          },
-        },
-      },
-      project: {
-        select: {
-          id: true,
-          name: true,
-          socialAccounts: {
-            select: {
-              id: true,
-              platform: true,
-              username: true,
-              status: true,
-              accessToken: true,
-              pageId: true,
-              instagramUserId: true,
-              lastError: true,
-            },
+    mediaAssets: {
+      orderBy: { sortOrder: 'asc' as const },
+      select: {
+        mediaAsset: {
+          select: {
+            id: true,
+            url: true,
+            fileName: true,
+            type: true,
           },
         },
       },
     },
-  })
+    project: {
+      select: {
+        id: true,
+        name: true,
+        socialAccounts: {
+          select: {
+            id: true,
+            platform: true,
+            username: true,
+            status: true,
+            accessToken: true,
+            pageId: true,
+            instagramUserId: true,
+            lastError: true,
+          },
+        },
+      },
+    },
+  }
+
+  let duePosts
+
+  if (targetPostId) {
+    duePosts = await prisma.scheduledPost.findMany({
+      where: {
+        id: targetPostId,
+        status: {
+          in: [PostStatus.scheduled, PostStatus.draft, PostStatus.published],
+        },
+      },
+      orderBy: { publishAt: 'asc' },
+      take: limit,
+      include: publisherInclude,
+    })
+  } else {
+    const [scheduledDue, recoveryRaw] = await Promise.all([
+      prisma.scheduledPost.findMany({
+        where: {
+          status: PostStatus.scheduled,
+          publishAt: { lte: now },
+        },
+        orderBy: { publishAt: 'asc' },
+        take: limit,
+        include: publisherInclude,
+      }),
+      prisma.scheduledPost.findMany({
+        where: {
+          status: PostStatus.published,
+          recurrenceJson: { not: Prisma.DbNull },
+        },
+        orderBy: { publishAt: 'asc' },
+        take: 60,
+        include: publisherInclude,
+      }),
+    ])
+
+    const recoveryFiltered = recoveryRaw
+      .filter((row) => {
+        if (row.recurrenceJson == null) return false
+        const r = parseRecurrence(row.recurrenceJson)
+        if (!r) return false
+        return getNextRecurrenceDate(row.publishAt, r, now) !== null
+      })
+      .slice(0, Math.min(25, limit))
+
+    const seen = new Set<string>()
+    const merged: typeof scheduledDue = []
+    for (const row of recoveryFiltered) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      merged.push(row)
+    }
+    for (const row of scheduledDue) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      merged.push(row)
+    }
+    duePosts = merged.slice(0, limit)
+  }
 
   const items: PublishExecutionItem[] = []
   let published = 0
@@ -669,6 +715,59 @@ export async function processScheduledPublications(
       },
     })
     const activePost = refreshedPost ?? post
+
+    if (activePost.status === PostStatus.published) {
+      const recForRecovery = parseRecurrence(activePost.recurrenceJson)
+      if (!recForRecovery) {
+        skipped += 1
+        items.push({
+          postId: post.id,
+          title: post.title,
+          finalStatus: 'skipped',
+          detail: 'Publicada sin repeticion activa reconocida.',
+          platformResults: [],
+        })
+        continue
+      }
+      const nextRecoveryAt = getNextRecurrenceDate(activePost.publishAt, recForRecovery, now)
+      if (!nextRecoveryAt) {
+        skipped += 1
+        items.push({
+          postId: post.id,
+          title: post.title,
+          finalStatus: 'skipped',
+          detail: 'Serie recurrente finalizada (sin mas ejecuciones segun reglas).',
+          platformResults: [],
+        })
+        continue
+      }
+      await prisma.scheduledPost.update({
+        where: { id: post.id },
+        data: {
+          status: PostStatus.scheduled,
+          publishAt: nextRecoveryAt,
+        },
+      })
+      await createActivityLog({
+        level: 'info',
+        category: 'publisher',
+        action: 'recurrence_recovery_reschedule',
+        targetType: 'scheduled_post',
+        targetId: post.id,
+        summary: `Recuperacion de ciclo recurrente para ${post.title}.`,
+        detail: { nextPublishAt: nextRecoveryAt.toISOString() },
+      })
+      skipped += 1
+      items.push({
+        postId: post.id,
+        title: post.title,
+        finalStatus: 'skipped',
+        detail: `Reprogramada para ${nextRecoveryAt.toISOString()} (ciclo recurrente activo).`,
+        platformResults: [],
+      })
+      continue
+    }
+
     const platforms = parsePlatforms(post.platformsJson)
     const recurrence = parseRecurrence(activePost.recurrenceJson)
     const parsedCaption = parseStoredCaption(activePost.caption)
@@ -999,22 +1098,33 @@ export async function processScheduledPublications(
       .map((entry) => `${entry.platform}: ${entry.detail ?? 'Sin detalle'}`)
       .slice(0, 10)
     const failureMessage = finalStatus === PostStatus.failed ? failureLines.join('\n') || lastCarouselErrorDetail || 'Error de publicacion.' : null
-    await safeUpdateScheduledPostPublishError({
-      postId: post.id,
-      status: finalStatus,
-      lastPublishError: failureMessage,
-      lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
-    })
 
     if (shouldRescheduleRecurringPost && nextPublishAt) {
-      await prisma.scheduledPost.update({
-        where: { id: post.id },
-        data: {
-          status: PostStatus.scheduled,
-          publishAt: nextPublishAt,
-          lastPublishError: null,
-          lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
-        },
+      try {
+        await prisma.scheduledPost.update({
+          where: { id: post.id },
+          data: {
+            status: PostStatus.scheduled,
+            publishAt: nextPublishAt,
+            lastPublishError: null,
+            lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
+          } as any,
+        })
+      } catch {
+        await prisma.scheduledPost.update({
+          where: { id: post.id },
+          data: {
+            status: PostStatus.scheduled,
+            publishAt: nextPublishAt,
+          },
+        })
+      }
+    } else {
+      await safeUpdateScheduledPostPublishError({
+        postId: post.id,
+        status: finalStatus,
+        lastPublishError: failureMessage,
+        lastPublishDetails: platformResults as unknown as Prisma.InputJsonValue,
       })
     }
 
@@ -1121,7 +1231,7 @@ export async function processScheduledPublications(
 
 export async function getPublishingQueueSnapshot() {
   const now = new Date()
-  const [dueNow, nextHour, disconnectedAccounts, expiringAccounts] = await Promise.all([
+  const [dueNow, nextHour, disconnectedAccounts, expiringAccounts, recoveryCandidates] = await Promise.all([
     prisma.scheduledPost.count({
       where: {
         status: PostStatus.scheduled,
@@ -1143,12 +1253,32 @@ export async function getPublishingQueueSnapshot() {
     prisma.socialAccount.count({
       where: { status: AccountStatus.token_expiring },
     }),
+    prisma.scheduledPost.findMany({
+      where: {
+        status: PostStatus.published,
+        recurrenceJson: { not: Prisma.DbNull },
+      },
+      select: {
+        id: true,
+        publishAt: true,
+        recurrenceJson: true,
+      },
+      take: 80,
+    }),
   ])
+
+  const publishedRecurringRecoverable = recoveryCandidates.filter((row) => {
+    if (row.recurrenceJson == null) return false
+    const r = parseRecurrence(row.recurrenceJson)
+    if (!r) return false
+    return getNextRecurrenceDate(row.publishAt, r, now) !== null
+  }).length
 
   return {
     mode: process.env.PUBLISHER_MODE?.trim().toLowerCase() || 'mock',
     dueNow,
     nextHour,
+    publishedRecurringRecoverable,
     disconnectedAccounts,
     expiringAccounts,
     checkedAt: now.toISOString(),
