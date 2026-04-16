@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Eye, Edit2, Copy, X } from 'lucide-react'
+import { Eye, Edit2, Copy, X, Trash2 } from 'lucide-react'
 
 import { AppModal } from '@/components/base/app-modal'
 import { DataTableCard } from '@/components/base/data-table'
@@ -23,7 +23,8 @@ interface ScheduledPostsTableProps {
 }
 
 interface ScheduledPostItem extends PostDetail {
-  projectId?: string
+  projectId?: string | null
+  publishingProjectId?: string
   status: string
 }
 
@@ -214,7 +215,12 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
       !post.platforms.some((p) => normalizePlatform(p).includes(filters.platform))
     ) return false
     if (filters.status !== 'all' && normalizeStatus(post.status) !== filters.status) return false
-    if (filters.project !== 'all' && post.projectId !== filters.project) return false
+    if (
+      filters.project !== 'all' &&
+      post.projectId !== filters.project &&
+      post.publishingProjectId !== filters.project
+    )
+      return false
     if (filters.user !== 'all' && post.creator !== filters.user) return false
     return true
   }), [posts, filters])
@@ -287,6 +293,51 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
     }
   }
 
+  const deletePost = async (post: ScheduledPostItem) => {
+    if (!confirm(`Eliminar definitivamente la publicacion "${post.title}"? Esta accion no se puede deshacer.`)) return
+    setActingId(post.id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const response = await fetch(`/api/scheduled-posts/${post.id}`, { method: 'DELETE' })
+      if (!response.ok) {
+        const json = await response.json().catch(() => null)
+        throw new Error(json?.message ?? 'No se pudo eliminar la publicacion.')
+      }
+      setSuccess('Publicacion eliminada.')
+      setSelectedIds((prev) => prev.filter((id) => id !== post.id))
+      await loadPosts()
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Error eliminando publicacion.')
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  const bulkDelete = async () => {
+    if (selectedIds.length === 0) return
+    if (!confirm(`Eliminar ${selectedIds.length} publicaciones seleccionadas? Esta accion no se puede deshacer.`)) return
+    setBulkLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const results = await Promise.allSettled(
+        selectedIds.map((id) => fetch(`/api/scheduled-posts/${id}`, { method: 'DELETE' })),
+      )
+      const failed = results.filter((result) => result.status === 'rejected' || (result.status === 'fulfilled' && !result.value.ok)).length
+      if (failed > 0) {
+        throw new Error(`Se eliminaron ${selectedIds.length - failed} y fallaron ${failed}.`)
+      }
+      setSuccess(`${selectedIds.length} publicaciones eliminadas.`)
+      setSelectedIds([])
+      await loadPosts()
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : 'Error en eliminacion masiva.')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   return (
     <>
       {error ? (
@@ -310,6 +361,9 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
           </Button>
           <Button variant="destructive" size="sm" onClick={bulkCancel} disabled={selectedIds.length === 0 || bulkLoading}>
             Cancelar seleccionadas
+          </Button>
+          <Button variant="destructive" size="sm" onClick={bulkDelete} disabled={selectedIds.length === 0 || bulkLoading}>
+            Eliminar seleccionadas
           </Button>
         </div>
       </div>
@@ -367,6 +421,9 @@ export function ScheduledPostsTable({ filters }: ScheduledPostsTableProps) {
                 </Button>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => cancelPost(post)} disabled={actingId === post.id}>
                   <X size={16} />
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive" onClick={() => deletePost(post)} disabled={actingId === post.id}>
+                  <Trash2 size={16} />
                 </Button>
               </div>
             </TableCell>

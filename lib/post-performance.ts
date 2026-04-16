@@ -135,6 +135,12 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
         select: {
           id: true,
           name: true,
+        },
+      },
+      publishingProject: {
+        select: {
+          id: true,
+          name: true,
           socialAccounts: {
             select: {
               platform: true,
@@ -172,7 +178,7 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
         const platform = typeof result.platform === 'string' ? result.platform.trim().toLowerCase() : ''
         const externalId = typeof result.externalId === 'string' ? result.externalId.trim() : ''
         if (!externalId || !platform) continue
-        const accountToken = row.project.socialAccounts.find((acc) => acc.platform === platform)?.accessToken ?? null
+        const accountToken = row.publishingProject.socialAccounts.find((acc) => acc.platform === platform)?.accessToken ?? null
         if (!accountToken) continue
 
         try {
@@ -207,9 +213,9 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
       byPlatformMap.set(key, item)
     }
 
-    const projectItem = byProjectMap.get(row.project.id) ?? {
-      projectId: row.project.id,
-      projectName: row.project.name,
+    const projectItem = byProjectMap.get(row.publishingProject.id) ?? {
+      projectId: row.publishingProject.id,
+      projectName: row.publishingProject.name,
       total: 0,
       published: 0,
       failed: 0,
@@ -217,12 +223,12 @@ export async function getPostPerformanceSummary(daysInput = 30): Promise<PostPer
     projectItem.total += 1
     if (row.status === PostStatus.published) projectItem.published += 1
     if (row.status === PostStatus.failed) projectItem.failed += 1
-    byProjectMap.set(row.project.id, projectItem)
+    byProjectMap.set(row.publishingProject.id, projectItem)
 
     postItems.push({
       id: row.id,
       title: row.title,
-      projectName: row.project.name,
+      projectName: row.project?.name ?? row.publishingProject.name,
       publishAt: row.publishAt.toISOString(),
       status: normalizedStatus,
       platforms,

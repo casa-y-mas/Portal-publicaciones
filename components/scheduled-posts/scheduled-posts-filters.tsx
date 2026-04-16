@@ -36,11 +36,21 @@ export function ScheduledPostsFilters({ filters, onFiltersChange }: ScheduledPos
     let mounted = true
     const loadProjects = async () => {
       try {
-        const response = await fetch('/api/projects')
-        if (!response.ok) return
-        const json = await response.json()
+        const [portalRes, bucketRes] = await Promise.all([
+          fetch('/api/projects'),
+          fetch('/api/projects?scope=publishing-buckets'),
+        ])
+        const portalJson = portalRes.ok ? await portalRes.json().catch(() => null) : null
+        const bucketJson = bucketRes.ok ? await bucketRes.json().catch(() => null) : null
         if (!mounted) return
-        setProjects((json.items ?? []).map((item: { id: string; name: string }) => ({ id: item.id, name: item.name })))
+        const merged = new Map<string, ProjectOption>()
+        for (const item of portalJson?.items ?? []) {
+          if (item?.id && item?.name) merged.set(item.id, { id: item.id, name: item.name })
+        }
+        for (const item of bucketJson?.items ?? []) {
+          if (item?.id && item?.name) merged.set(item.id, { id: item.id, name: item.name })
+        }
+        setProjects(Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name)))
       } catch {
         if (mounted) setProjects([])
       }

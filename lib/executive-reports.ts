@@ -81,7 +81,7 @@ export async function getWeeklyExecutiveReport(): Promise<WeeklyExecutiveReport>
       }),
       prisma.project.findMany({
         include: {
-          posts: {
+          publishingPosts: {
             where: {
               OR: [
                 { publishAt: { gte: last7d, lte: now } },
@@ -136,9 +136,9 @@ export async function getWeeklyExecutiveReport(): Promise<WeeklyExecutiveReport>
     projects: projectRows.map((project) => ({
       projectId: project.id,
       projectName: project.name,
-      published: project.posts.filter((post) => post.status === PostStatus.published && post.publishAt <= now).length,
-      scheduledNext7d: project.posts.filter((post) => post.status === PostStatus.scheduled && post.publishAt >= now).length,
-      failed: project.posts.filter((post) => post.status === PostStatus.failed).length,
+      published: project.publishingPosts.filter((post) => post.status === PostStatus.published && post.publishAt <= now).length,
+      scheduledNext7d: project.publishingPosts.filter((post) => post.status === PostStatus.scheduled && post.publishAt >= now).length,
+      failed: project.publishingPosts.filter((post) => post.status === PostStatus.failed).length,
     })),
     team: creators.map((user) => ({
       userId: user.id,

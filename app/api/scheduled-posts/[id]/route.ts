@@ -91,13 +91,15 @@ function serializePost(item: {
   contentType: ContentType
   publishAt: Date
   status: PostStatus
-  projectId: string
+  projectId: string | null
+  publishingProjectId: string
   mediaAssetId: string | null
   thumbnail: string | null
   lastPublishError: string | null
   recurrenceJson: Prisma.JsonValue | null
   platformsJson: Prisma.JsonValue
-  project: { id: string; name: string }
+  project: { id: string; name: string } | null
+  publishingProject: { id: string; name: string }
   creator: { id: string; name: string }
   approver: { id: string; name: string } | null
   mediaAsset: { id: string; fileName: string } | null
@@ -113,8 +115,10 @@ function serializePost(item: {
     status: item.status,
     creator: item.creator.name,
     approver: item.approver?.name ?? null,
-    project: item.project.name,
+    project: item.project?.name ?? `Libre — ${item.publishingProject.name}`,
     projectId: item.projectId,
+    publishingProject: item.publishingProject.name,
+    publishingProjectId: item.publishingProjectId,
     mediaAssetId: item.mediaAssetId,
     mediaAssetIds: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAssetId) : [],
     mediaAssets: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAsset) : [],
@@ -141,6 +145,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     where: { id },
     include: {
       project: { select: { id: true, name: true } },
+      publishingProject: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },
@@ -175,7 +180,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const nextMediaAssetId = existing.mediaAssetId
 
   if (nextPlatforms.length > 0) {
-    await ensureProjectSocialAccounts(existing.projectId)
+    await ensureProjectSocialAccounts(existing.publishingProjectId)
   }
 
   if (nextStatus === PostStatus.scheduled) {
@@ -191,7 +196,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (includesFacebook(nextPlatforms)) {
       const facebookAccount = await prisma.socialAccount.findFirst({
         where: {
-          projectId: existing.projectId,
+          projectId: existing.publishingProjectId,
           platform: 'facebook',
           status: { in: ['connected', 'token_expiring'] },
         },
@@ -227,7 +232,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
       const instagramAccount = await prisma.socialAccount.findFirst({
         where: {
-          projectId: existing.projectId,
+          projectId: existing.publishingProjectId,
           platform: 'instagram',
           status: { in: ['connected', 'token_expiring'] },
         },
@@ -274,6 +279,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     },
     include: {
       project: { select: { id: true, name: true } },
+      publishingProject: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },
@@ -285,4 +291,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   })
 
   return NextResponse.json({ item: serializePost(updated) })
+}
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ message: 'No autorizado.' }, { status: 401 })
+  }
+
+  const { id } = await context.params
+  const existing = await prisma.scheduledPost.findUnique({
+    where: { id },
+    select: { id: true, title: true },
+  })
+
+  if (!existing) {
+    return NextResponse.json({ message: 'Publicacion no encontrada.' }, { status: 404 })
+  }
+
+  await prisma.scheduledPost.delete({
+    where: { id },
+  })
+
+  return NextResponse.json({
+    ok: true,
+    message: `Publicacion "${existing.title}" eliminada.`,
+  })
 }

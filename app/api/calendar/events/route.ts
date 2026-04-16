@@ -76,7 +76,11 @@ export async function GET(request: Request) {
           },
         }
       : {}),
-    ...(project !== 'all' ? { projectId: project } : {}),
+    ...(project !== 'all'
+      ? {
+          OR: [{ projectId: project }, { publishingProjectId: project }],
+        }
+      : {}),
     ...(user !== 'all'
       ? {
           creator: {
@@ -96,6 +100,7 @@ export async function GET(request: Request) {
     orderBy: { publishAt: 'asc' },
     include: {
       project: { select: { id: true, name: true } },
+      publishingProject: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },
@@ -122,8 +127,9 @@ export async function GET(request: Request) {
       status: item.status,
       creator: item.creator.name,
       approver: item.approver?.name ?? null,
-      project: item.project.name,
+      project: item.project?.name ?? item.publishingProject.name,
       projectId: item.projectId,
+      publishingProjectId: item.publishingProjectId,
       mediaAssetId: item.mediaAssetId,
       mediaAssetIds: item.mediaAssets.map((entry) => entry.mediaAssetId),
       mediaAssets: item.mediaAssets.map((entry) => entry.mediaAsset),

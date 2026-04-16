@@ -690,6 +690,12 @@ export async function processScheduledPublications(
       select: {
         id: true,
         name: true,
+      },
+    },
+    publishingProject: {
+      select: {
+        id: true,
+        name: true,
         socialAccounts: {
           select: {
             id: true,
@@ -773,8 +779,8 @@ export async function processScheduledPublications(
 
   for (const post of duePosts) {
     try {
-    await ensureProjectSocialAccounts(post.projectId)
-    await syncProjectMedia(post.projectId).catch(() => null)
+    await ensureProjectSocialAccounts(post.publishingProjectId)
+    await syncProjectMedia(post.publishingProjectId).catch(() => null)
     const refreshedPost = await prisma.scheduledPost.findUnique({
       where: { id: post.id },
       include: {
@@ -800,6 +806,12 @@ export async function processScheduledPublications(
           },
         },
         project: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        publishingProject: {
           select: {
             id: true,
             name: true,
@@ -977,12 +989,12 @@ export async function processScheduledPublications(
         continue
       }
 
-      const account = activePost.project.socialAccounts.find((item) => item.platform === platform)
+      const account = activePost.publishingProject.socialAccounts.find((item) => item.platform === platform)
       if (!account) {
         platformResults.push({
           platform: platformLabel,
           ok: false,
-          detail: `No existe cuenta conectada para ${platformLabel} en ${post.project.name}.`,
+          detail: `No existe cuenta conectada para ${platformLabel} en ${activePost.publishingProject.name}.`,
         })
         postFailed = true
         hadPermanentError = true
@@ -1000,13 +1012,13 @@ export async function processScheduledPublications(
         continue
       }
 
-      const shouldCarousel = imageUrls.length >= 2 && post.contentType !== 'story'
+      const shouldCarousel = imageUrls.length >= 2 && activePost.contentType !== 'story'
       let publishedResult: Awaited<ReturnType<typeof publishToMetaPlatform>>
 
       if (!shouldCarousel) {
         publishedResult = await publishWithRetry({
           platform,
-          contentType: post.contentType,
+          contentType: activePost.contentType,
           caption: publishCaption,
           mediaUrl: primary.url,
           mediaType: primary.type,
@@ -1032,7 +1044,7 @@ export async function processScheduledPublications(
             // Fallback: si falla carrusel, intenta enviar un solo post con la imagen principal.
             const fallback = await publishWithRetry({
               platform,
-              contentType: post.contentType,
+              contentType: activePost.contentType,
               caption: publishCaption,
               mediaUrl: primary.url,
               mediaType: primary.type,
@@ -1053,7 +1065,7 @@ export async function processScheduledPublications(
           lastCarouselErrorDetail = err instanceof Error ? err.message : String(err)
           publishedResult = await publishWithRetry({
             platform,
-            contentType: post.contentType,
+            contentType: activePost.contentType,
             caption: publishCaption,
             mediaUrl: primary.url,
             mediaType: primary.type,
@@ -1080,7 +1092,7 @@ export async function processScheduledPublications(
             // Fallback: enviar una sola imagen si falla carrusel.
             const fallback = await publishWithRetry({
               platform,
-              contentType: post.contentType,
+              contentType: activePost.contentType,
               caption: publishCaption,
               mediaUrl: primary.url,
               mediaType: primary.type,
@@ -1101,7 +1113,7 @@ export async function processScheduledPublications(
           lastCarouselErrorDetail = err instanceof Error ? err.message : String(err)
           publishedResult = await publishWithRetry({
             platform,
-            contentType: post.contentType,
+            contentType: activePost.contentType,
             caption: publishCaption,
             mediaUrl: primary.url,
             mediaType: primary.type,

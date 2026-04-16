@@ -65,13 +65,15 @@ function serializePost(item: {
   contentType: string
   publishAt: Date
   status: string
-  projectId: string
+  projectId: string | null
+  publishingProjectId: string
   mediaAssetId: string | null
   thumbnail: string | null
   lastPublishError?: string | null
   recurrenceJson: Prisma.JsonValue | null
   platformsJson: Prisma.JsonValue
-  project: { id: string; name: string }
+  project: { id: string; name: string } | null
+  publishingProject: { id: string; name: string }
   creator: { id: string; name: string }
   approver: { id: string; name: string } | null
   mediaAsset: { id: string; fileName: string } | null
@@ -87,8 +89,10 @@ function serializePost(item: {
     status: item.status,
     creator: item.creator.name,
     approver: item.approver?.name ?? null,
-    project: item.project.name,
+    project: item.project?.name ?? `Libre — ${item.publishingProject.name}`,
     projectId: item.projectId,
+    publishingProject: item.publishingProject.name,
+    publishingProjectId: item.publishingProjectId,
     mediaAssetId: item.mediaAssetId,
     mediaAssetIds: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAssetId) : [],
     mediaAssets: item.mediaAssets ? item.mediaAssets.map((entry) => entry.mediaAsset) : [],
@@ -127,6 +131,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       platformsJson: original.platformsJson as Prisma.InputJsonValue,
       thumbnail: original.thumbnail,
       projectId: original.projectId,
+      publishingProjectId: original.publishingProjectId,
       creatorId: session.user.id,
       approverId: null,
       mediaAssetId: original.mediaAssetId,
@@ -137,6 +142,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     where: { id: duplicated.id },
     include: {
       project: { select: { id: true, name: true } },
+      publishingProject: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },

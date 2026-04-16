@@ -11,20 +11,36 @@ import { ensureProjectSocialAccounts } from '@/lib/project-social-accounts'
 
 const SUBTITLE_MARKER = '[SUBTITULO]'
 
-const createScheduledPostSchema = z.object({
-  title: z.string().trim().min(3).max(180),
-  subtitle: z.string().trim().max(200).optional().or(z.literal('')),
-  caption: z.string().trim().min(3).max(5000),
-  contentType: z.nativeEnum(ContentType),
-  status: z.nativeEnum(PostStatus),
-  publishAt: z.string().datetime(),
-  projectId: z.string().min(1),
-  platforms: z.array(z.string().trim().min(1)).min(1),
-  recurrence: z.record(z.string(), z.unknown()).nullable().optional(),
-  thumbnail: z.string().trim().optional().or(z.literal('')),
-  mediaAssetId: z.string().trim().optional().or(z.literal('')),
-  mediaAssetIds: z.array(z.string().trim().min(1)).optional(),
-})
+const optionalProjectKey = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? undefined : val),
+  z.string().trim().min(1).optional(),
+)
+
+const createScheduledPostSchema = z
+  .object({
+    title: z.string().trim().min(3).max(180),
+    subtitle: z.string().trim().max(200).optional().or(z.literal('')),
+    caption: z.string().trim().min(3).max(5000),
+    contentType: z.nativeEnum(ContentType),
+    status: z.nativeEnum(PostStatus),
+    publishAt: z.string().datetime(),
+    projectId: optionalProjectKey,
+    publishingProjectId: optionalProjectKey,
+    platforms: z.array(z.string().trim().min(1)).min(1),
+    recurrence: z.record(z.string(), z.unknown()).nullable().optional(),
+    thumbnail: z.string().trim().optional().or(z.literal('')),
+    mediaAssetId: z.string().trim().optional().or(z.literal('')),
+    mediaAssetIds: z.array(z.string().trim().min(1)).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.projectId?.trim() && !data.publishingProjectId?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Indica un proyecto del portal o un proyecto de publicacion (cuentas).',
+        path: ['publishingProjectId'],
+      })
+    }
+  })
 
 type RecurrenceInfo = {
   enabled: boolean
@@ -96,6 +112,7 @@ export async function GET() {
     orderBy: { publishAt: 'desc' },
     include: {
       project: { select: { id: true, name: true } },
+      publishingProject: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },
@@ -117,8 +134,10 @@ export async function GET() {
       status: item.status,
       creator: item.creator.name,
       approver: item.approver?.name ?? null,
-      project: item.project.name,
+      project: item.project?.name ?? `Libre — ${item.publishingProject.name}`,
       projectId: item.projectId,
+      publishingProject: item.publishingProject.name,
+      publishingProjectId: item.publishingProjectId,
       mediaAssetId: item.mediaAssetId,
       mediaAssetIds: item.mediaAssets.map((entry) => entry.mediaAssetId),
       mediaAssets: item.mediaAssets.map((entry) => entry.mediaAsset),
@@ -141,14 +160,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Payload invalido.', errors: parsed.error.flatten() }, { status: 400 })
   }
 
-  const project = await resolveProjectRecord(parsed.data.projectId)
-  if (!project) {
-    return NextResponse.json({ message: 'Proyecto no encontrado.' }, { status: 404 })
+  const publishingKey = (parsed.data.publishingProjectId?.trim() || parsed.data.projectId?.trim() || '').trim()
+  const listingKey = parsed.data.projectId?.trim() || ''
+
+  const publishingProject = await resolveProjectRecord(publishingKey)
+  if (!publishingProject) {
+    return NextResponse.json({ message: 'Proyecto de publicacion no encontrado.' }, { status: 404 })
   }
-  const resolvedProjectId = project.id
+
+  const listingProject = listingKey ? await resolveProjectRecord(listingKey) : null
+  const resolvedPublishingId = publishingProject.id
+  const resolvedListingId = listingProject?.id ?? null
 
   if (parsed.data.platforms.length > 0) {
-    await ensureProjectSocialAccounts(resolvedProjectId)
+    await ensureProjectSocialAccounts(resolvedPublishingId)
   }
 
   // Usar `raw` para evitar que un schema viejo/estricto de Zod ignore el campo,
@@ -161,7 +186,7 @@ export async function POST(request: Request) {
   const publishAt = new Date(parsed.data.publishAt)
 
   if (mediaAssetIds.length > 0) {
-    await syncProjectMedia(parsed.data.projectId)
+    await syncProjectMedia(resolvedPublishingId)
   }
 
   const mediaAssetId = mediaAssetIds[0] || null
@@ -183,7 +208,7 @@ export async function POST(request: Request) {
     if (includesFacebook(parsed.data.platforms)) {
       const facebookAccount = await prisma.socialAccount.findFirst({
         where: {
-          projectId: resolvedProjectId,
+          projectId: resolvedPublishingId,
           platform: 'facebook',
           status: { in: ['connected', 'token_expiring'] },
         },
@@ -218,7 +243,7 @@ export async function POST(request: Request) {
 
       const instagramAccount = await prisma.socialAccount.findFirst({
         where: {
-          projectId: resolvedProjectId,
+          projectId: resolvedPublishingId,
           platform: 'instagram',
           status: { in: ['connected', 'token_expiring'] },
         },
@@ -253,7 +278,7 @@ export async function POST(request: Request) {
     if (media.length !== mediaAssetIds.length) {
       return NextResponse.json({ message: 'Una o mas medias no fueron encontradas.' }, { status: 404 })
     }
-    const wrongProject = media.find((item) => item.projectId !== resolvedProjectId)
+    const wrongProject = media.find((item) => item.projectId !== resolvedPublishingId)
     if (wrongProject) {
       return NextResponse.json({ message: 'La media debe pertenecer al mismo proyecto.' }, { status: 400 })
     }
@@ -268,7 +293,8 @@ export async function POST(request: Request) {
         contentType: parsed.data.contentType,
         status: parsed.data.status,
         publishAt,
-        projectId: resolvedProjectId,
+        projectId: resolvedListingId,
+        publishingProjectId: resolvedPublishingId,
         creatorId: session.user.id,
         mediaAssetId,
         thumbnail: parsed.data.thumbnail || null,
@@ -286,6 +312,7 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error('Error al crear scheduled post con mediaAssetIds', {
       projectId: parsed.data.projectId,
+      publishingProjectId: parsed.data.publishingProjectId,
       mediaAssetIds,
       legacyMediaAssetId: parsed.data.mediaAssetId,
       err,
@@ -301,6 +328,7 @@ export async function POST(request: Request) {
     where: { id: created.id },
     include: {
       project: { select: { id: true, name: true } },
+      publishingProject: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       approver: { select: { id: true, name: true } },
       mediaAsset: { select: { id: true, fileName: true, url: true, type: true } },
@@ -327,8 +355,10 @@ export async function POST(request: Request) {
         status: createdWithRelations.status,
         creator: createdWithRelations.creator.name,
         approver: createdWithRelations.approver?.name ?? null,
-        project: createdWithRelations.project.name,
+        project: createdWithRelations.project?.name ?? `Libre — ${createdWithRelations.publishingProject.name}`,
         projectId: createdWithRelations.projectId,
+        publishingProject: createdWithRelations.publishingProject.name,
+        publishingProjectId: createdWithRelations.publishingProjectId,
         mediaAssetId: createdWithRelations.mediaAssetId,
         mediaAssetIds: createdWithRelations.mediaAssets.map((entry) => entry.mediaAssetId),
         mediaAssets: createdWithRelations.mediaAssets.map((entry) => entry.mediaAsset),

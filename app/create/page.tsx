@@ -12,6 +12,13 @@ import { Input } from '@/components/ui/input'
 type PostStatusForm = 'draft' | 'scheduled' | 'cancelled'
 type ContentTypeForm = 'post' | 'reel' | 'story' | 'carousel'
 
+type PublicationBinding = 'portal' | 'free'
+
+interface PublishingBucketOption {
+  id: string
+  name: string
+}
+
 interface ProjectOption {
   id: string
   name: string
@@ -110,13 +117,17 @@ export default function CreatePage() {
   const initialScheduled = getRoundedNow()
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [publishingBuckets, setPublishingBuckets] = useState<PublishingBucketOption[]>([])
   const [mediaOptions, setMediaOptions] = useState<MediaOption[]>([])
   const [previewMediaId, setPreviewMediaId] = useState<string | null>(null)
   const [readiness, setReadiness] = useState<PublishingReadiness | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
 
   const [formData, setFormData] = useState({
+    binding: 'portal' as PublicationBinding,
     projectId: '',
+    publishingProjectId: '',
+    freeAiNotes: '',
     platforms: [] as string[],
     contentType: 'post' as ContentTypeForm,
     title: '',
@@ -197,10 +208,18 @@ export default function CreatePage() {
         if (!mounted) return
 
         setProjects(items)
-        setFormData((prev) => ({
-          ...prev,
-          projectId: prev.projectId || items[0]?.id || '',
-        }))
+        setFormData((prev) => {
+          const firstPortal = items[0]?.id || ''
+          if (prev.binding === 'free') {
+            return { ...prev, projectId: '' }
+          }
+          const nextProject = prev.projectId || firstPortal
+          return {
+            ...prev,
+            projectId: nextProject,
+            publishingProjectId: nextProject,
+          }
+        })
       } catch (loadError) {
         if (mounted) setError(loadError instanceof Error ? loadError.message : 'Error cargando proyectos.')
       } finally {
@@ -217,22 +236,57 @@ export default function CreatePage() {
 
   useEffect(() => {
     let mounted = true
+    const loadBuckets = async () => {
+      try {
+        const response = await fetch('/api/projects?scope=publishing-buckets')
+        if (!response.ok) {
+          if (mounted) setPublishingBuckets([])
+          return
+        }
+        const json = await response.json()
+        if (!mounted) return
+        setPublishingBuckets((json.items ?? []).map((item: { id: string; name: string }) => ({ id: item.id, name: item.name })))
+      } catch {
+        if (mounted) setPublishingBuckets([])
+      }
+    }
+    void loadBuckets()
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (formData.binding !== 'free') return
+    if (formData.publishingProjectId) return
+    const first = publishingBuckets[0]?.id
+    if (!first) return
+    setFormData((prev) => ({ ...prev, publishingProjectId: first }))
+  }, [formData.binding, formData.publishingProjectId, publishingBuckets])
+
+  useEffect(() => {
+    let mounted = true
 
     const loadMedia = async () => {
-      if (!formData.projectId) {
+      const bucketId = formData.binding === 'portal' ? formData.projectId : formData.publishingProjectId
+      if (!bucketId) {
         setMediaOptions([])
         setFormData((prev) => ({ ...prev, mediaAssetIds: [] }))
         return
       }
 
       try {
-        const response = await fetch(`/api/projects/${formData.projectId}/media`)
+        const response =
+          formData.binding === 'portal'
+            ? await fetch(`/api/projects/${bucketId}/media`)
+            : await fetch(`/api/media?projectId=${encodeURIComponent(bucketId)}`)
         if (!response.ok) {
           if (mounted) setMediaOptions([])
           return
         }
         const json = await response.json()
-        const items: MediaOption[] = (json.items ?? []).map((item: {
+        const rawItems = formData.binding === 'portal' ? (json.items ?? []) : (json.items ?? [])
+        const items: MediaOption[] = rawItems.map((item: {
           id: string
           fileName: string
           url?: string
@@ -251,9 +305,12 @@ export default function CreatePage() {
         setMediaOptions(items)
         setFormData((prev) => ({
           ...prev,
-          mediaAssetIds: prev.mediaAssetIds.length > 0
-            ? prev.mediaAssetIds.filter((id) => items.some((item) => item.id === id))
-            : items.map((item) => item.id),
+          mediaAssetIds:
+            prev.mediaAssetIds.length > 0
+              ? prev.mediaAssetIds.filter((id) => items.some((item) => item.id === id))
+              : prev.binding === 'portal' && items.length > 0
+                ? items.map((item) => item.id)
+                : [],
         }))
         setPreviewMediaId((prev) => {
           if (prev && items.some((item) => item.id === prev)) return prev
@@ -270,20 +327,21 @@ export default function CreatePage() {
     return () => {
       mounted = false
     }
-  }, [formData.projectId])
+  }, [formData.binding, formData.projectId, formData.publishingProjectId])
 
   useEffect(() => {
     let mounted = true
 
     const loadReadiness = async () => {
-      if (!formData.projectId || (!hasFacebookSelected && !hasInstagramSelected)) {
+      const accountProjectId = formData.binding === 'portal' ? formData.projectId : formData.publishingProjectId
+      if (!accountProjectId || (!hasFacebookSelected && !hasInstagramSelected)) {
         if (mounted) setReadiness(null)
         return
       }
 
       setReadinessLoading(true)
       try {
-        const response = await fetch(`/api/publisher/run?projectId=${encodeURIComponent(formData.projectId)}`)
+        const response = await fetch(`/api/publisher/run?projectId=${encodeURIComponent(accountProjectId)}`)
         if (!response.ok) {
           if (mounted) setReadiness(null)
           return
@@ -302,7 +360,7 @@ export default function CreatePage() {
     return () => {
       mounted = false
     }
-  }, [formData.projectId, hasFacebookSelected, hasInstagramSelected])
+  }, [formData.binding, formData.projectId, formData.publishingProjectId, hasFacebookSelected, hasInstagramSelected])
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === formData.projectId) ?? null,
@@ -318,7 +376,41 @@ export default function CreatePage() {
     return mediaOptions.find((item) => selectedIds.includes(item.id)) ?? null
   }, [mediaOptions, formData.mediaAssetIds, previewMediaId])
 
-  const selectedProjectName = selectedProject?.name ?? 'No definido'
+  const selectedPublishingBucket = useMemo(
+    () => publishingBuckets.find((project) => project.id === formData.publishingProjectId) ?? null,
+    [publishingBuckets, formData.publishingProjectId],
+  )
+
+  const selectedProjectName = useMemo(() => {
+    if (formData.binding === 'free') {
+      return formData.title.trim() || 'Publicacion libre (manual)'
+    }
+    return selectedProject?.name ?? 'No definido'
+  }, [formData.binding, formData.title, selectedProject?.name])
+
+  const setPublicationBinding = (binding: PublicationBinding) => {
+    setFormData((prev) => {
+      if (binding === 'portal') {
+        const firstPortal = projects[0]?.id || ''
+        const next = prev.projectId || firstPortal
+        return {
+          ...prev,
+          binding: 'portal',
+          projectId: next,
+          publishingProjectId: next,
+        }
+      }
+      const firstBucket = publishingBuckets[0]?.id || ''
+      return {
+        ...prev,
+        binding: 'free',
+        projectId: '',
+        publishingProjectId: prev.publishingProjectId || firstBucket,
+        mediaAssetIds: [],
+      }
+    })
+    setPreviewMediaId(null)
+  }
 
   const togglePlatform = (platform: string) => {
     setFormData((prev) => ({
@@ -356,7 +448,7 @@ export default function CreatePage() {
         mimeType: payload.mimeType,
         type: payload.type,
         sizeBytes: payload.sizeBytes,
-        projectId: formData.projectId,
+        projectId: formData.publishingProjectId || formData.projectId,
         tags,
       }),
     })
@@ -370,8 +462,8 @@ export default function CreatePage() {
 
   const handleExternalFilesSelected = async (fileList: FileList | null) => {
     if (!fileList?.length) return
-    if (!formData.projectId) {
-      setError('Selecciona un proyecto primero (paso 1).')
+    if (!(formData.publishingProjectId || formData.projectId)) {
+      setError('Selecciona un proyecto o contenedor de publicacion primero (paso 1).')
       return
     }
     setExternalBusy(true)
@@ -427,17 +519,20 @@ export default function CreatePage() {
           tone: aiTone,
           objective: aiObjective,
           projectName: selectedProjectName,
-          projectContext: selectedProject
-            ? {
-                tipoOperacion: selectedProject.tipoOperacion,
-                estado: selectedProject.estado,
-                ubicacion: selectedProject.ubicacionTexto,
-                areaTotalM2: selectedProject.areaTotalM2,
-                precioSoles: selectedProject.precioSoles,
-                precioDolares: selectedProject.precioDolares,
-                descripcionProyecto: selectedProject.description,
-              }
-            : null,
+          projectContext:
+            formData.binding === 'portal' && selectedProject
+              ? {
+                  tipoOperacion: selectedProject.tipoOperacion,
+                  estado: selectedProject.estado,
+                  ubicacion: selectedProject.ubicacionTexto,
+                  areaTotalM2: selectedProject.areaTotalM2,
+                  precioSoles: selectedProject.precioSoles,
+                  precioDolares: selectedProject.precioDolares,
+                  descripcionProyecto: selectedProject.description,
+                }
+              : formData.binding === 'free' && formData.freeAiNotes.trim()
+                ? { descripcionProyecto: formData.freeAiNotes.trim() }
+                : null,
           title: formData.title,
           subtitle: formData.subtitle,
         }),
@@ -469,7 +564,9 @@ export default function CreatePage() {
     }
   }
 
-  const canGoStep2 = formData.projectId && formData.platforms.length > 0 && formData.contentType
+  const accountProjectReady =
+    formData.binding === 'portal' ? Boolean(formData.projectId) : Boolean(formData.publishingProjectId)
+  const canGoStep2 = accountProjectReady && formData.platforms.length > 0 && Boolean(formData.contentType)
   const canGoStep3 = formData.title.trim() && formData.subtitle.trim() && formData.caption.trim()
   const canSubmit = formData.scheduledDate && formData.scheduledTime
   const canPublishToFacebook = !hasFacebookSelected || readiness?.readyForFacebook !== false
@@ -511,7 +608,8 @@ export default function CreatePage() {
           contentType: formData.contentType,
           status: formData.status,
           publishAt: publishAt.toISOString(),
-          projectId: formData.projectId,
+          projectId: formData.binding === 'portal' ? formData.projectId : null,
+          publishingProjectId: formData.binding === 'portal' ? formData.projectId : formData.publishingProjectId,
           platforms: formData.platforms,
           mediaAssetId: formData.mediaAssetIds[0] || undefined,
           mediaAssetIds: formData.mediaAssetIds,
@@ -572,23 +670,78 @@ export default function CreatePage() {
 
           {step === 1 && (
             <div className="bg-card border border-border rounded-lg p-6 space-y-6">
-              <h3 className="text-lg font-semibold">Proyecto y destino</h3>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold block mb-2">Proyecto inmobiliario</label>
-                  <select
-                    value={formData.projectId}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, projectId: e.target.value }))}
-                    className="w-full bg-muted border border-border rounded-lg px-3 py-2"
-                    disabled={loading}
+              <h3 className="text-lg font-semibold">Tipo de publicacion y destino</h3>
+              <div>
+                <p className="text-sm font-semibold mb-2">Origen del contenido</p>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPublicationBinding('portal')}
+                    className={`px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                      formData.binding === 'portal' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'
+                    }`}
                   >
-                    {projects.map((project) => (
-                      <option key={project.id} value={project.id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
+                    Por proyecto (portal inmobiliario)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPublicationBinding('free')}
+                    className={`px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-colors ${
+                      formData.binding === 'free' ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    Libre (sin inmueble del portal)
+                  </button>
                 </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  En modo libre eliges donde publicar (cuentas conectadas) y escribes titulo, texto y media a mano. No se usa el catalogo del portal.
+                </p>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
+                {formData.binding === 'portal' ? (
+                  <div>
+                    <label className="text-sm font-semibold block mb-2">Proyecto del portal</label>
+                    <select
+                      value={formData.projectId}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setFormData((prev) => ({ ...prev, projectId: v, publishingProjectId: v }))
+                      }}
+                      className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                      disabled={loading}
+                    >
+                      {projects.length === 0 ? <option value="">Sin proyectos</option> : null}
+                      {projects.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-sm font-semibold block mb-2">Publicar con las cuentas de</label>
+                    <select
+                      value={formData.publishingProjectId}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, publishingProjectId: e.target.value, mediaAssetIds: [] }))}
+                      className="w-full bg-muted border border-border rounded-lg px-3 py-2"
+                      disabled={publishingBuckets.length === 0}
+                    >
+                      {publishingBuckets.length === 0 ? (
+                        <option value="">Ningun proyecto con cuentas conectadas</option>
+                      ) : null}
+                      {publishingBuckets.map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      La multimedia se guarda en la biblioteca de este proyecto (local).
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-semibold block mb-2">Tipo de publicacion</label>
                   <select
@@ -652,6 +805,19 @@ export default function CreatePage() {
                   />
                 </div>
               </div>
+
+              {formData.binding === 'free' ? (
+                <div>
+                  <label className="text-sm font-semibold block mb-2">Contexto para IA (opcional)</label>
+                  <textarea
+                    className="w-full bg-muted border border-border rounded-lg p-3 text-foreground placeholder-muted-foreground resize-none text-sm"
+                    rows={3}
+                    value={formData.freeAiNotes}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, freeAiNotes: e.target.value }))}
+                    placeholder="Ej: promocion de fin de semana, tono cercano, sin inventar precios..."
+                  />
+                </div>
+              ) : null}
 
               <div>
                 <label className="text-sm font-semibold block mb-2">Multimedia del post (biblioteca o externa)</label>
@@ -722,7 +888,9 @@ export default function CreatePage() {
                     }}
                     className="w-full bg-muted border border-border rounded-lg px-3 py-2"
                   >
-                    <option value="">Agregar media del proyecto...</option>
+                    <option value="">
+                      {formData.binding === 'portal' ? 'Agregar media del proyecto del portal...' : 'Agregar media de la biblioteca local...'}
+                    </option>
                     {mediaOptions
                       .filter((media) => !formData.mediaAssetIds.includes(media.id))
                       .map((media) => (
@@ -732,7 +900,9 @@ export default function CreatePage() {
                       ))}
                   </select>
                   <div className="text-xs text-muted-foreground">
-                    Se carga automaticamente la multimedia del proyecto seleccionado. Puedes quitar o agregar archivos para esta publicacion.
+                    {formData.binding === 'portal'
+                      ? 'Se carga automaticamente la multimedia del proyecto del portal. Puedes quitar o agregar archivos para esta publicacion.'
+                      : 'En modo libre debes elegir archivos desde la biblioteca local o subirlos. No hay catalogo del portal.'}
                   </div>
                   <div className="border-t border-border pt-4 mt-2 space-y-3">
                     <p className="text-sm font-semibold">Contenido externo</p>
@@ -754,7 +924,7 @@ export default function CreatePage() {
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={!formData.projectId || externalBusy}
+                        disabled={(!(formData.binding === 'portal' ? formData.projectId : formData.publishingProjectId)) || externalBusy}
                         onClick={() => externalFileInputRef.current?.click()}
                       >
                         <Upload size={14} className="mr-2" />
@@ -919,9 +1089,17 @@ export default function CreatePage() {
         <div className="lg:col-span-1">
           <div className="bg-card border border-border rounded-lg p-6 sticky top-24 space-y-3">
             <h3 className="font-semibold">Resumen</h3>
-            <p className="text-xs text-muted-foreground">Proyecto</p>
+            <p className="text-xs text-muted-foreground">Modo</p>
+            <p className="text-sm font-semibold">{formData.binding === 'portal' ? 'Proyecto portal' : 'Libre (manual)'}</p>
+            {formData.binding === 'free' && selectedPublishingBucket ? (
+              <>
+                <p className="text-xs text-muted-foreground">Cuentas / biblioteca</p>
+                <p className="text-sm font-semibold">{selectedPublishingBucket.name}</p>
+              </>
+            ) : null}
+            <p className="text-xs text-muted-foreground">Inmueble / titulo</p>
             <p className="text-sm font-semibold">{selectedProjectName}</p>
-            {selectedProject ? (
+            {formData.binding === 'portal' && selectedProject ? (
               <>
                 <p className="text-xs text-muted-foreground">Slug</p>
                 <p className="text-sm font-semibold">{selectedProject.slug || 'No definido'}</p>

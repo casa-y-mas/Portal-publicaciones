@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma'
 
 const SUBTITLE_MARKER = '[SUBTITULO]'
 
+function scheduledPostProjectLabel(post: { project?: { name: string } | null; publishingProject: { name: string } }) {
+  return post.project?.name ?? post.publishingProject.name
+}
+
 type RecurrenceInfo = {
   enabled: boolean
   type?: 'hourly' | 'daily' | 'weekday' | 'weekend' | 'weekly' | 'custom' | null
@@ -233,6 +237,7 @@ export async function getUpcomingPosts(limit = 5): Promise<DashboardUpcomingPost
     take: limit,
     include: {
       project: { select: { name: true } },
+      publishingProject: { select: { name: true } },
       creator: { select: { name: true } },
       approver: { select: { name: true } },
       mediaAsset: { select: { fileName: true } },
@@ -260,7 +265,7 @@ export async function getUpcomingPosts(limit = 5): Promise<DashboardUpcomingPost
       publishAt: post.publishAt.toISOString(),
       thumbnail: post.thumbnail ?? post.mediaAsset?.fileName ?? null,
       platforms,
-      project: post.project.name,
+      project: scheduledPostProjectLabel(post),
       creator: post.creator.name,
       approver: post.approver?.name ?? null,
       recurrence: parseRecurrence(post.recurrenceJson),
@@ -338,7 +343,8 @@ export async function getDashboardCommandCenter(): Promise<DashboardCommandCente
       post.publishAt <= in7d
     ) {
       scheduledNext7d += 1
-      projectUpcomingCounter.set(post.project.name, (projectUpcomingCounter.get(post.project.name) ?? 0) + 1)
+      const label = scheduledPostProjectLabel(post)
+      projectUpcomingCounter.set(label, (projectUpcomingCounter.get(label) ?? 0) + 1)
     }
 
     for (const platform of parsePlatforms(post.platformsJson)) {
@@ -391,6 +397,7 @@ export async function getOperationalIncidents(limit = 8): Promise<OperationalInc
     take: 80,
     include: {
       project: { select: { name: true } },
+      publishingProject: { select: { name: true } },
     },
   })
 
@@ -401,7 +408,7 @@ export async function getOperationalIncidents(limit = 8): Promise<OperationalInc
         type: 'failed',
         severity: 'alta',
         title: `Fallo de publicacion: ${post.title}`,
-        project: post.project.name,
+        project: scheduledPostProjectLabel(post),
         publishAt: post.publishAt.toISOString(),
         actionHref: '/publicaciones-programadas?status=failed',
       }
@@ -412,7 +419,7 @@ export async function getOperationalIncidents(limit = 8): Promise<OperationalInc
         type: 'missing_media',
         severity: 'media',
         title: `Falta media: ${post.title}`,
-        project: post.project.name,
+        project: scheduledPostProjectLabel(post),
         publishAt: post.publishAt.toISOString(),
         actionHref: '/library',
       }
@@ -422,7 +429,7 @@ export async function getOperationalIncidents(limit = 8): Promise<OperationalInc
       type: 'approval',
       severity: 'alta',
       title: `Pendiente aprobacion: ${post.title}`,
-      project: post.project.name,
+      project: scheduledPostProjectLabel(post),
       publishAt: post.publishAt.toISOString(),
       actionHref: '/approvals',
     }
@@ -445,7 +452,9 @@ export async function getProjectOptimizationRecommendations(limit = 5): Promise<
       },
       select: {
         projectId: true,
+        publishingProjectId: true,
         project: { select: { name: true } },
+        publishingProject: { select: { name: true } },
         platformsJson: true,
         status: true,
         publishAt: true,
@@ -454,13 +463,13 @@ export async function getProjectOptimizationRecommendations(limit = 5): Promise<
       take: 1500,
     }),
     prisma.scheduledPost.groupBy({
-      by: ['projectId'],
+      by: ['publishingProjectId'],
       where: {
         publishAt: { gte: now, lte: next14d },
         status: { in: [PostStatus.scheduled, PostStatus.pending_approval, PostStatus.draft] },
       },
       _count: { _all: true },
-      orderBy: { _count: { projectId: 'desc' } },
+      orderBy: { _count: { publishingProjectId: 'desc' } },
       take: 10,
     }),
     prisma.project.findMany({
@@ -471,7 +480,9 @@ export async function getProjectOptimizationRecommendations(limit = 5): Promise<
   ])
 
   const projectNameById = new Map(projects.map((project) => [project.id, project.name]))
-  const projectPriority = new Map(upcomingWorkload.map((item, index) => [item.projectId, { load: item._count._all, index }]))
+  const projectPriority = new Map(
+    upcomingWorkload.map((item, index) => [item.publishingProjectId, { load: item._count._all, index }]),
+  )
 
   const globalStats = new Map<string, { published: number; failed: number }>()
   const perProjectStats = new Map<string, Map<string, { published: number; failed: number }>>()
@@ -490,12 +501,12 @@ export async function getProjectOptimizationRecommendations(limit = 5): Promise<
       else globalItem.failed += 1
       globalStats.set(combo, globalItem)
 
-      const projectMap = perProjectStats.get(post.projectId) ?? new Map<string, { published: number; failed: number }>()
+      const projectMap = perProjectStats.get(post.publishingProjectId) ?? new Map<string, { published: number; failed: number }>()
       const projectItem = projectMap.get(combo) ?? { published: 0, failed: 0 }
       if (isSuccess) projectItem.published += 1
       else projectItem.failed += 1
       projectMap.set(combo, projectItem)
-      perProjectStats.set(post.projectId, projectMap)
+      perProjectStats.set(post.publishingProjectId, projectMap)
     }
   }
 
@@ -510,7 +521,7 @@ export async function getProjectOptimizationRecommendations(limit = 5): Promise<
       return b.sample - a.sample
     })[0]
 
-  const targetProjectIds = new Set<string>(upcomingWorkload.map((item) => item.projectId))
+  const targetProjectIds = new Set<string>(upcomingWorkload.map((item) => item.publishingProjectId))
   if (targetProjectIds.size === 0) {
     for (const project of projects.slice(0, limit)) {
       targetProjectIds.add(project.id)
@@ -579,6 +590,7 @@ export async function getApprovalBoardData(): Promise<{ pending: ApprovalQueueIt
       include: {
         creator: { select: { name: true } },
         project: { select: { name: true } },
+        publishingProject: { select: { name: true } },
       },
       take: 50,
     }),
@@ -591,6 +603,7 @@ export async function getApprovalBoardData(): Promise<{ pending: ApprovalQueueIt
       include: {
         approver: { select: { name: true } },
         project: { select: { name: true } },
+        publishingProject: { select: { name: true } },
       },
       take: 10,
     }),
@@ -605,7 +618,7 @@ export async function getApprovalBoardData(): Promise<{ pending: ApprovalQueueIt
         caption: parsedCaption.caption,
         subtitle: parsedCaption.subtitle,
         creator: post.creator.name,
-        project: post.project.name,
+        project: scheduledPostProjectLabel(post),
         platforms: parsePlatforms(post.platformsJson),
         proposedDate: post.publishAt.toISOString(),
         submittedAt: post.createdAt.toISOString(),
@@ -615,7 +628,7 @@ export async function getApprovalBoardData(): Promise<{ pending: ApprovalQueueIt
     recent: reviewedPosts.map((post) => ({
       id: post.id,
       title: post.title,
-      project: post.project.name,
+      project: scheduledPostProjectLabel(post),
       reviewedAt: post.updatedAt.toISOString(),
       reviewer: post.approver?.name ?? 'Sin responsable',
       finalStatus: post.status,
@@ -638,6 +651,7 @@ export async function getReportSummary(): Promise<ReportSummaryData> {
       publishAt: true,
       platformsJson: true,
       project: { select: { name: true } },
+      publishingProject: { select: { name: true } },
     },
     take: 1500,
     orderBy: { publishAt: 'desc' },
@@ -672,7 +686,8 @@ export async function getReportSummary(): Promise<ReportSummaryData> {
     for (const platform of parsePlatforms(post.platformsJson)) {
       byNetworkMap.set(platform, (byNetworkMap.get(platform) ?? 0) + 1)
     }
-    byProjectMap.set(post.project.name, (byProjectMap.get(post.project.name) ?? 0) + 1)
+    const label = scheduledPostProjectLabel(post)
+    byProjectMap.set(label, (byProjectMap.get(label) ?? 0) + 1)
   }
 
   return {

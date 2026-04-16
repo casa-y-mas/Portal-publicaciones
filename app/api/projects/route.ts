@@ -1,7 +1,28 @@
-import { NextResponse } from 'next/server'
-import { getNormalizedProjects } from '@/lib/external-projects'
+import { AccountStatus } from '@prisma/client'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+import { getNormalizedProjects } from '@/lib/external-projects'
+import { prisma } from '@/lib/prisma'
+
+export async function GET(request: NextRequest) {
+  const scope = request.nextUrl.searchParams.get('scope')?.trim().toLowerCase()
+
+  if (scope === 'publishing-buckets') {
+    const rows = await prisma.project.findMany({
+      where: {
+        socialAccounts: {
+          some: {
+            status: { in: [AccountStatus.connected, AccountStatus.token_expiring] },
+            accessToken: { not: null },
+          },
+        },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    })
+    return NextResponse.json({ items: rows })
+  }
+
   try {
     const items = await getNormalizedProjects()
     return NextResponse.json({ items })
