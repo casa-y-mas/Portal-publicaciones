@@ -161,6 +161,58 @@ function buildPublicMediaUrl(mediaUrl: string) {
   return `${base}${path}`
 }
 
+async function ensureFacebookPostIsPublic(postId: string, accessToken: string) {
+  const normalizedPostId = postId.trim()
+  if (!normalizedPostId) {
+    return { ok: false as const, detail: 'No se pudo verificar visibilidad del post (id vacio).' }
+  }
+
+  const inspectUrl = new URL(`https://graph.facebook.com/v19.0/${encodeURIComponent(normalizedPostId)}`)
+  inspectUrl.searchParams.set('fields', 'id,is_published,published,timeline_visibility,permalink_url')
+  inspectUrl.searchParams.set('access_token', accessToken)
+
+  const inspectResponse = await fetch(inspectUrl.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  })
+  const inspectJson = await inspectResponse.json().catch(() => null)
+
+  if (!inspectResponse.ok) {
+    const apiMessage = inspectJson?.error?.message ?? 'No se pudo inspeccionar visibilidad del post.'
+    return { ok: false as const, detail: apiMessage }
+  }
+
+  const isPublished = inspectJson?.is_published
+  const published = inspectJson?.published
+  const timelineVisibility = inspectJson?.timeline_visibility
+  const requiresForcePublic = isPublished === false || published === false || timelineVisibility === 'hidden'
+
+  if (!requiresForcePublic) {
+    return { ok: true as const, detail: 'Visibilidad publica verificada.' }
+  }
+
+  const forceBody = new URLSearchParams()
+  forceBody.set('access_token', accessToken)
+  forceBody.set('is_published', 'true')
+  forceBody.set('published', 'true')
+  forceBody.set('timeline_visibility', 'normal')
+
+  const forceResponse = await fetch(`https://graph.facebook.com/v19.0/${encodeURIComponent(normalizedPostId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: forceBody,
+    cache: 'no-store',
+  })
+  const forceJson = await forceResponse.json().catch(() => null)
+  if (!forceResponse.ok) {
+    const apiMessage = forceJson?.error?.message ?? 'Meta no permitio forzar visibilidad publica.'
+    return { ok: false as const, detail: apiMessage }
+  }
+
+  return { ok: true as const, detail: 'Meta confirmo ajuste a visibilidad publica.' }
+}
+
 async function safeUpdateScheduledPostPublishError(input: {
   postId: string
   status: PostStatus
@@ -287,10 +339,13 @@ async function publishToMetaPlatform(input: {
         }
       }
 
+      const externalId = (feedJson?.id as string | undefined) ?? (uploadJson?.id as string | undefined) ?? null
+      const visibilityCheck = externalId ? await ensureFacebookPostIsPublic(externalId, input.accessToken) : null
+
       return {
         ok: true,
-        detail: `Publicado en Facebook Page ${input.pageId} (feed).`,
-        externalId: (feedJson?.id as string | undefined) ?? (uploadJson?.id as string | undefined) ?? null,
+        detail: `Publicado en Facebook Page ${input.pageId} (feed).${visibilityCheck ? ` ${visibilityCheck.detail}` : ''}`,
+        externalId,
       }
     }
 
@@ -318,10 +373,13 @@ async function publishToMetaPlatform(input: {
       }
     }
 
+    const externalId = (json?.post_id as string | undefined) ?? (json?.id as string | undefined) ?? null
+    const visibilityCheck = externalId ? await ensureFacebookPostIsPublic(externalId, input.accessToken) : null
+
     return {
       ok: true,
-      detail: `Publicado video en Facebook Page ${input.pageId}.`,
-      externalId: (json?.post_id as string | undefined) ?? (json?.id as string | undefined) ?? null,
+      detail: `Publicado video en Facebook Page ${input.pageId}.${visibilityCheck ? ` ${visibilityCheck.detail}` : ''}`,
+      externalId,
     }
   }
 
