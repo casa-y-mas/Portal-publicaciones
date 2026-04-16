@@ -238,21 +238,68 @@ async function publishToMetaPlatform(input: {
       }
     }
 
-    const endpoint =
-      input.mediaType === 'video'
-        ? `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/videos`
-        : `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
+    if (input.mediaType === 'image') {
+      // Subimos la foto no publicada y luego creamos un post en feed con attached_media.
+      // Esto evita que quede solo en "Fotos" y mejora visibilidad para usuarios no admins.
+      const uploadEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/photos`
+      const uploadBody = new URLSearchParams()
+      uploadBody.set('access_token', input.accessToken)
+      uploadBody.set('published', 'false')
+      uploadBody.set('url', mediaUrl)
 
+      const uploadResponse = await fetch(uploadEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: uploadBody,
+        cache: 'no-store',
+      })
+
+      const uploadJson = await uploadResponse.json().catch(() => null)
+      if (!uploadResponse.ok || !uploadJson?.id) {
+        const apiMessage = uploadJson?.error?.message ?? 'No se pudo subir la imagen para Facebook.'
+        return {
+          ok: false,
+          detail: `Meta API rechazo la publicacion: ${apiMessage}`,
+          externalId: null,
+        }
+      }
+
+      const feedEndpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/feed`
+      const feedBody = new URLSearchParams()
+      feedBody.set('access_token', input.accessToken)
+      feedBody.set('message', input.caption)
+      feedBody.set('attached_media[0]', JSON.stringify({ media_fbid: uploadJson.id as string }))
+
+      const feedResponse = await fetch(feedEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: feedBody,
+        cache: 'no-store',
+      })
+
+      const feedJson = await feedResponse.json().catch(() => null)
+      if (!feedResponse.ok) {
+        const apiMessage = feedJson?.error?.message ?? 'No se pudo crear el post en feed de Facebook.'
+        return {
+          ok: false,
+          detail: `Meta API rechazo la publicacion: ${apiMessage}`,
+          externalId: null,
+        }
+      }
+
+      return {
+        ok: true,
+        detail: `Publicado en Facebook Page ${input.pageId} (feed).`,
+        externalId: (feedJson?.id as string | undefined) ?? (uploadJson?.id as string | undefined) ?? null,
+      }
+    }
+
+    const endpoint = `https://graph.facebook.com/v19.0/${encodeURIComponent(input.pageId)}/videos`
     const body = new URLSearchParams()
     body.set('access_token', input.accessToken)
     body.set('published', 'true')
-    if (input.mediaType === 'video') {
-      body.set('file_url', mediaUrl)
-      body.set('description', input.caption)
-    } else {
-      body.set('url', mediaUrl)
-      body.set('caption', input.caption)
-    }
+    body.set('file_url', mediaUrl)
+    body.set('description', input.caption)
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -273,7 +320,7 @@ async function publishToMetaPlatform(input: {
 
     return {
       ok: true,
-      detail: `Publicado en Facebook Page ${input.pageId}.`,
+      detail: `Publicado video en Facebook Page ${input.pageId}.`,
       externalId: (json?.post_id as string | undefined) ?? (json?.id as string | undefined) ?? null,
     }
   }
