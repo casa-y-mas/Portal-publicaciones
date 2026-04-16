@@ -1,27 +1,77 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
+const contextValueSchema = z.union([z.string(), z.number()]).nullable().optional()
+
 const generateSchema = z.object({
   tone: z.string().min(1).optional(),
   objective: z.string().min(1).optional(),
   modoIA: z.string().min(1).optional(),
   objetivoIA: z.string().min(1).optional(),
   projectName: z.string().min(1),
-  projectContext: z
-    .object({
-      tipoOperacion: z.string().optional(),
-      estado: z.string().optional(),
-      ubicacion: z.string().optional(),
-      areaTotalM2: z.string().optional(),
-      precioSoles: z.string().optional(),
-      precioDolares: z.string().optional(),
-      descripcionProyecto: z.string().optional(),
-    })
-    .nullable()
-    .optional(),
+  projectContext: z.union([
+    z
+      .object({
+        tipoOperacion: contextValueSchema,
+        estado: contextValueSchema,
+        ubicacion: contextValueSchema,
+        areaTotalM2: contextValueSchema,
+        precioSoles: contextValueSchema,
+        precioDolares: contextValueSchema,
+        descripcionProyecto: contextValueSchema,
+      })
+      .nullable(),
+    z.string(),
+  ]).optional(),
   title: z.string().optional(),
   subtitle: z.string().optional(),
 })
+
+function normalizeContextValue(value: string | number | null | undefined): string | null {
+  if (value == null) return null
+  const text = String(value).trim()
+  return text.length > 0 ? text : null
+}
+
+function buildProjectContextLines(
+  projectContext:
+    | {
+        tipoOperacion?: string | number | null
+        estado?: string | number | null
+        ubicacion?: string | number | null
+        areaTotalM2?: string | number | null
+        precioSoles?: string | number | null
+        precioDolares?: string | number | null
+        descripcionProyecto?: string | number | null
+      }
+    | string
+    | null
+    | undefined,
+) {
+  if (!projectContext) return []
+  if (typeof projectContext === 'string') {
+    const text = projectContext.trim()
+    return text ? [`Contexto del proyecto: ${text}`] : []
+  }
+
+  const tipoOperacion = normalizeContextValue(projectContext.tipoOperacion)
+  const estado = normalizeContextValue(projectContext.estado)
+  const ubicacion = normalizeContextValue(projectContext.ubicacion)
+  const areaTotalM2 = normalizeContextValue(projectContext.areaTotalM2)
+  const precioSoles = normalizeContextValue(projectContext.precioSoles)
+  const precioDolares = normalizeContextValue(projectContext.precioDolares)
+  const descripcionProyecto = normalizeContextValue(projectContext.descripcionProyecto)
+
+  return [
+    tipoOperacion ? `Tipo de operacion: ${tipoOperacion}` : null,
+    estado ? `Estado: ${estado}` : null,
+    ubicacion ? `Ubicacion: ${ubicacion}` : null,
+    areaTotalM2 ? `Area total m2: ${areaTotalM2}` : null,
+    precioSoles ? `Precio en soles: ${precioSoles}` : null,
+    precioDolares ? `Precio en dolares: ${precioDolares}` : null,
+    descripcionProyecto ? `Descripcion del proyecto: ${descripcionProyecto}` : null,
+  ].filter(Boolean) as string[]
+}
 
 function stripCodeFences(text: string): string {
   return text.replace(/```json|```/g, '').trim()
@@ -127,6 +177,7 @@ export async function POST(request: Request) {
   const tone = (body.data.modoIA ?? body.data.tone ?? '').trim()
   const objective = (body.data.objetivoIA ?? body.data.objective ?? '').trim()
   const { projectName, projectContext, title, subtitle } = body.data
+  const projectContextLines = buildProjectContextLines(projectContext)
 
   if (!tone || !objective) {
     return NextResponse.json({ message: 'Faltan parametros de IA (modoIA y objetivoIA).' }, { status: 400 })
@@ -148,13 +199,7 @@ export async function POST(request: Request) {
     '',
     `Datos: tono=${tone}, objetivo=${objective}`,
     `Inmueble/Proyecto de ejemplo: ${projectName}`,
-    projectContext?.tipoOperacion ? `Tipo de operacion: ${projectContext.tipoOperacion}` : null,
-    projectContext?.estado ? `Estado: ${projectContext.estado}` : null,
-    projectContext?.ubicacion ? `Ubicacion: ${projectContext.ubicacion}` : null,
-    projectContext?.areaTotalM2 ? `Area total m2: ${projectContext.areaTotalM2}` : null,
-    projectContext?.precioSoles ? `Precio en soles: ${projectContext.precioSoles}` : null,
-    projectContext?.precioDolares ? `Precio en dolares: ${projectContext.precioDolares}` : null,
-    projectContext?.descripcionProyecto ? `Descripcion del proyecto: ${projectContext.descripcionProyecto}` : null,
+    ...projectContextLines,
     title ? `Titulo: ${title}` : null,
     subtitle ? `Subtitulo: ${subtitle}` : null,
   ]
@@ -177,13 +222,7 @@ export async function POST(request: Request) {
     'Cada descripcion debe tener CTA, enfoque comercial y emojis de apoyo.',
     'No uses prefijos entre parentesis como "(profesional)".',
     `Contexto: tono=${tone}, objetivo=${objective}, inmueble=${projectName}`,
-    projectContext?.tipoOperacion ? `Tipo: ${projectContext.tipoOperacion}` : null,
-    projectContext?.estado ? `Estado: ${projectContext.estado}` : null,
-    projectContext?.ubicacion ? `Ubicacion: ${projectContext.ubicacion}` : null,
-    projectContext?.areaTotalM2 ? `Area total m2: ${projectContext.areaTotalM2}` : null,
-    projectContext?.precioSoles ? `Precio en soles: ${projectContext.precioSoles}` : null,
-    projectContext?.precioDolares ? `Precio en dolares: ${projectContext.precioDolares}` : null,
-    projectContext?.descripcionProyecto ? `Descripcion del proyecto: ${projectContext.descripcionProyecto}` : null,
+    ...projectContextLines,
     title ? `Titulo: ${title}` : null,
     subtitle ? `Subtitulo: ${subtitle}` : null,
   ]
