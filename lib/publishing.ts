@@ -154,8 +154,23 @@ function buildConsultationMessage(title: string) {
   return `Necesito informacion del inmueble "${cleanedTitle}".`
 }
 
-function buildMessengerConsultUrl(pageId: string, message: string) {
-  const normalizedPageId = pageId.trim()
+function normalizePhoneNumber(raw: string) {
+  return raw.replace(/\D+/g, '')
+}
+
+function buildWhatsAppConsultUrl(message: string) {
+  const configured =
+    process.env.META_WHATSAPP_NUMBER?.trim() ||
+    process.env.WHATSAPP_NUMBER?.trim() ||
+    ''
+  const normalized = normalizePhoneNumber(configured)
+  if (!normalized) return null
+  const encodedMessage = encodeURIComponent(message)
+  return `https://wa.me/${normalized}?text=${encodedMessage}`
+}
+
+function buildMessengerConsultUrl(pageId: string | null, message: string) {
+  const normalizedPageId = (pageId ?? '').trim()
   if (!normalizedPageId) return null
   const encodedMessage = encodeURIComponent(message)
   return `https://m.me/${encodeURIComponent(normalizedPageId)}?text=${encodedMessage}`
@@ -166,9 +181,25 @@ function shouldRetryWithoutFacebookCta(apiMessage: string) {
   return (
     normalized.includes('call_to_action') ||
     normalized.includes('message_page') ||
+    normalized.includes('whatsapp') ||
     normalized.includes('param') ||
     normalized.includes('invalid')
   )
+}
+
+function buildFacebookConsultCta(input: { pageId: string | null; title: string }) {
+  const consultationMessage = buildConsultationMessage(input.title)
+  const whatsappUrl = buildWhatsAppConsultUrl(consultationMessage)
+  if (whatsappUrl) {
+    return {
+      payload: JSON.stringify({ type: 'WHATSAPP_MESSAGE', value: { link: whatsappUrl } }),
+    }
+  }
+  const messengerUrl = buildMessengerConsultUrl(input.pageId, consultationMessage)
+  if (!messengerUrl) return null
+  return {
+    payload: JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: messengerUrl } }),
+  }
 }
 
 function buildPublicMediaUrl(mediaUrl: string) {
@@ -344,10 +375,9 @@ async function publishToMetaPlatform(input: {
       feedBody.set('access_token', input.accessToken)
       feedBody.set('message', input.caption)
       feedBody.set('attached_media[0]', JSON.stringify({ media_fbid: uploadJson.id as string }))
-      const consultMessage = buildConsultationMessage(input.postTitle)
-      const consultUrl = buildMessengerConsultUrl(input.pageId, consultMessage)
-      if (consultUrl) {
-        feedBody.set('call_to_action', JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: consultUrl } }))
+      const consultCta = buildFacebookConsultCta({ pageId: input.pageId, title: input.postTitle })
+      if (consultCta) {
+        feedBody.set('call_to_action', consultCta.payload)
       }
 
       let feedResponse = await fetch(feedEndpoint, {
@@ -358,7 +388,7 @@ async function publishToMetaPlatform(input: {
       })
 
       let feedJson = await feedResponse.json().catch(() => null)
-      if (!feedResponse.ok && consultUrl) {
+      if (!feedResponse.ok && consultCta) {
         const apiMessage = feedJson?.error?.message ?? ''
         if (shouldRetryWithoutFacebookCta(apiMessage)) {
           const fallbackFeedBody = new URLSearchParams(feedBody.toString())
@@ -397,10 +427,9 @@ async function publishToMetaPlatform(input: {
     body.set('published', 'true')
     body.set('file_url', mediaUrl)
     body.set('description', input.caption)
-    const consultMessage = buildConsultationMessage(input.postTitle)
-    const consultUrl = buildMessengerConsultUrl(input.pageId, consultMessage)
-    if (consultUrl) {
-      body.set('call_to_action', JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: consultUrl } }))
+    const consultCta = buildFacebookConsultCta({ pageId: input.pageId, title: input.postTitle })
+    if (consultCta) {
+      body.set('call_to_action', consultCta.payload)
     }
 
     let response = await fetch(endpoint, {
@@ -411,7 +440,7 @@ async function publishToMetaPlatform(input: {
     })
 
     let json = await response.json().catch(() => null)
-    if (!response.ok && consultUrl) {
+    if (!response.ok && consultCta) {
       const apiMessage = json?.error?.message ?? ''
       if (shouldRetryWithoutFacebookCta(apiMessage)) {
         const fallbackBody = new URLSearchParams(body.toString())
@@ -582,10 +611,9 @@ async function publishFacebookCarousel(input: {
   const feedBody = new URLSearchParams()
   feedBody.set('access_token', input.accessToken)
   feedBody.set('message', input.caption)
-  const consultMessage = buildConsultationMessage(input.postTitle)
-  const consultUrl = buildMessengerConsultUrl(input.pageId, consultMessage)
-  if (consultUrl) {
-    feedBody.set('call_to_action', JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: consultUrl } }))
+  const consultCta = buildFacebookConsultCta({ pageId: input.pageId, title: input.postTitle })
+  if (consultCta) {
+    feedBody.set('call_to_action', consultCta.payload)
   }
 
   uploadedMediaIds.forEach((id, index) => {
@@ -600,7 +628,7 @@ async function publishFacebookCarousel(input: {
   })
 
   let feedJson = await feedResponse.json().catch(() => null)
-  if (!feedResponse.ok && consultUrl) {
+  if (!feedResponse.ok && consultCta) {
     const apiMessage = feedJson?.error?.message ?? ''
     if (shouldRetryWithoutFacebookCta(apiMessage)) {
       const fallbackFeedBody = new URLSearchParams(feedBody.toString())
