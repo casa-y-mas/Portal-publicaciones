@@ -149,6 +149,27 @@ function composePublishCaption(input: { title: string; subtitle: string | null; 
   return lines.join('\n')
 }
 
+function buildConsultationMessage(title: string) {
+  const cleanedTitle = title.replace(/\s+/g, ' ').trim()
+  return `Necesito informacion del inmueble "${cleanedTitle}".`
+}
+
+function buildMessengerConsultUrl(pageId: string, message: string) {
+  const normalizedPageId = pageId.trim()
+  if (!normalizedPageId) return null
+  const encodedMessage = encodeURIComponent(message)
+  return `https://m.me/${encodeURIComponent(normalizedPageId)}?text=${encodedMessage}`
+}
+
+function appendConsultationCta(caption: string, input: { pageId: string | null; title: string }) {
+  if (!input.pageId) return caption
+  const consultationMessage = buildConsultationMessage(input.title)
+  const consultUrl = buildMessengerConsultUrl(input.pageId, consultationMessage)
+  if (!consultUrl) return caption
+  const footer = `\n\nConsultar por Messenger:\n${consultUrl}`
+  return `${caption}${footer}`
+}
+
 function buildPublicMediaUrl(mediaUrl: string) {
   const isHttp = /^https?:\/\//i.test(mediaUrl)
   if (isHttp) return mediaUrl
@@ -1013,13 +1034,17 @@ export async function processScheduledPublications(
       }
 
       const shouldCarousel = imageUrls.length >= 2 && activePost.contentType !== 'story'
+      const platformCaption =
+        platform === 'facebook'
+          ? appendConsultationCta(publishCaption, { pageId: account.pageId, title: activePost.title })
+          : publishCaption
       let publishedResult: Awaited<ReturnType<typeof publishToMetaPlatform>>
 
       if (!shouldCarousel) {
         publishedResult = await publishWithRetry({
           platform,
           contentType: activePost.contentType,
-          caption: publishCaption,
+          caption: platformCaption,
           mediaUrl: primary.url,
           mediaType: primary.type,
           instagramUserId: account.instagramUserId,
@@ -1032,7 +1057,7 @@ export async function processScheduledPublications(
           const carouselResult = await publishFacebookCarousel({
             pageId: account.pageId || '',
             accessToken: account.accessToken,
-            caption: publishCaption,
+            caption: platformCaption,
             mediaUrls: imageUrls,
           })
 
@@ -1045,7 +1070,7 @@ export async function processScheduledPublications(
             const fallback = await publishWithRetry({
               platform,
               contentType: activePost.contentType,
-              caption: publishCaption,
+              caption: platformCaption,
               mediaUrl: primary.url,
               mediaType: primary.type,
               instagramUserId: account.instagramUserId,
@@ -1066,7 +1091,7 @@ export async function processScheduledPublications(
           publishedResult = await publishWithRetry({
             platform,
             contentType: activePost.contentType,
-            caption: publishCaption,
+            caption: platformCaption,
             mediaUrl: primary.url,
             mediaType: primary.type,
             instagramUserId: account.instagramUserId,
@@ -1093,7 +1118,7 @@ export async function processScheduledPublications(
             const fallback = await publishWithRetry({
               platform,
               contentType: activePost.contentType,
-              caption: publishCaption,
+              caption: platformCaption,
               mediaUrl: primary.url,
               mediaType: primary.type,
               instagramUserId: account.instagramUserId,
@@ -1114,7 +1139,7 @@ export async function processScheduledPublications(
           publishedResult = await publishWithRetry({
             platform,
             contentType: activePost.contentType,
-            caption: publishCaption,
+            caption: platformCaption,
             mediaUrl: primary.url,
             mediaType: primary.type,
             instagramUserId: account.instagramUserId,
