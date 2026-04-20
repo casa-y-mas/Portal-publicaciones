@@ -17,12 +17,9 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Env files (keep examples)
-.env
-.env.local
 .env.development.local
 .env.test.local
 .env.production.local
-.env.*
 !.env.example
 
 # Prisma local databases
@@ -49,7 +46,6 @@ public/uploads/
 Thumbs.db
 
 # Editor / IDE
-.vscode/
 .idea/
 *.swp
 *.swo
@@ -63,3 +59,4 @@ __v0_devtools.tsx
 __v0_jsx-dev-runtime.ts
 instrumentation-client.js
 instrumentation-client.ts
+config.bat
