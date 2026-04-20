@@ -161,13 +161,14 @@ function buildMessengerConsultUrl(pageId: string, message: string) {
   return `https://m.me/${encodeURIComponent(normalizedPageId)}?text=${encodedMessage}`
 }
 
-function appendConsultationCta(caption: string, input: { pageId: string | null; title: string }) {
-  if (!input.pageId) return caption
-  const consultationMessage = buildConsultationMessage(input.title)
-  const consultUrl = buildMessengerConsultUrl(input.pageId, consultationMessage)
-  if (!consultUrl) return caption
-  const footer = `\n\nConsultar por Messenger:\n${consultUrl}`
-  return `${caption}${footer}`
+function shouldRetryWithoutFacebookCta(apiMessage: string) {
+  const normalized = apiMessage.toLowerCase()
+  return (
+    normalized.includes('call_to_action') ||
+    normalized.includes('message_page') ||
+    normalized.includes('param') ||
+    normalized.includes('invalid')
+  )
 }
 
 function buildPublicMediaUrl(mediaUrl: string) {
@@ -269,6 +270,7 @@ async function publishToMetaPlatform(input: {
   platform: PlatformName
   contentType: 'post' | 'reel' | 'story' | 'carousel'
   caption: string
+  postTitle: string
   mediaUrl: string
   mediaType: 'image' | 'video'
   instagramUserId: string | null
@@ -342,15 +344,34 @@ async function publishToMetaPlatform(input: {
       feedBody.set('access_token', input.accessToken)
       feedBody.set('message', input.caption)
       feedBody.set('attached_media[0]', JSON.stringify({ media_fbid: uploadJson.id as string }))
+      const consultMessage = buildConsultationMessage(input.postTitle)
+      const consultUrl = buildMessengerConsultUrl(input.pageId, consultMessage)
+      if (consultUrl) {
+        feedBody.set('call_to_action', JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: consultUrl } }))
+      }
 
-      const feedResponse = await fetch(feedEndpoint, {
+      let feedResponse = await fetch(feedEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: feedBody,
         cache: 'no-store',
       })
 
-      const feedJson = await feedResponse.json().catch(() => null)
+      let feedJson = await feedResponse.json().catch(() => null)
+      if (!feedResponse.ok && consultUrl) {
+        const apiMessage = feedJson?.error?.message ?? ''
+        if (shouldRetryWithoutFacebookCta(apiMessage)) {
+          const fallbackFeedBody = new URLSearchParams(feedBody.toString())
+          fallbackFeedBody.delete('call_to_action')
+          feedResponse = await fetch(feedEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: fallbackFeedBody,
+            cache: 'no-store',
+          })
+          feedJson = await feedResponse.json().catch(() => null)
+        }
+      }
       if (!feedResponse.ok) {
         const apiMessage = feedJson?.error?.message ?? 'No se pudo crear el post en feed de Facebook.'
         return {
@@ -376,15 +397,34 @@ async function publishToMetaPlatform(input: {
     body.set('published', 'true')
     body.set('file_url', mediaUrl)
     body.set('description', input.caption)
+    const consultMessage = buildConsultationMessage(input.postTitle)
+    const consultUrl = buildMessengerConsultUrl(input.pageId, consultMessage)
+    if (consultUrl) {
+      body.set('call_to_action', JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: consultUrl } }))
+    }
 
-    const response = await fetch(endpoint, {
+    let response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body,
       cache: 'no-store',
     })
 
-    const json = await response.json().catch(() => null)
+    let json = await response.json().catch(() => null)
+    if (!response.ok && consultUrl) {
+      const apiMessage = json?.error?.message ?? ''
+      if (shouldRetryWithoutFacebookCta(apiMessage)) {
+        const fallbackBody = new URLSearchParams(body.toString())
+        fallbackBody.delete('call_to_action')
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: fallbackBody,
+          cache: 'no-store',
+        })
+        json = await response.json().catch(() => null)
+      }
+    }
     if (!response.ok) {
       const apiMessage = json?.error?.message ?? 'Error desconocido de Meta Graph API.'
       return {
@@ -505,6 +545,7 @@ async function publishFacebookCarousel(input: {
   pageId: string
   accessToken: string
   caption: string
+  postTitle: string
   mediaUrls: string[]
 }) {
   // Para multi-imagen en Facebook (Page Feed) es más confiable:
@@ -541,19 +582,38 @@ async function publishFacebookCarousel(input: {
   const feedBody = new URLSearchParams()
   feedBody.set('access_token', input.accessToken)
   feedBody.set('message', input.caption)
+  const consultMessage = buildConsultationMessage(input.postTitle)
+  const consultUrl = buildMessengerConsultUrl(input.pageId, consultMessage)
+  if (consultUrl) {
+    feedBody.set('call_to_action', JSON.stringify({ type: 'MESSAGE_PAGE', value: { link: consultUrl } }))
+  }
 
   uploadedMediaIds.forEach((id, index) => {
     feedBody.set(`attached_media[${index}]`, JSON.stringify({ media_fbid: id }))
   })
 
-  const feedResponse = await fetch(feedEndpoint, {
+  let feedResponse = await fetch(feedEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: feedBody,
     cache: 'no-store',
   })
 
-  const feedJson = await feedResponse.json().catch(() => null)
+  let feedJson = await feedResponse.json().catch(() => null)
+  if (!feedResponse.ok && consultUrl) {
+    const apiMessage = feedJson?.error?.message ?? ''
+    if (shouldRetryWithoutFacebookCta(apiMessage)) {
+      const fallbackFeedBody = new URLSearchParams(feedBody.toString())
+      fallbackFeedBody.delete('call_to_action')
+      feedResponse = await fetch(feedEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: fallbackFeedBody,
+        cache: 'no-store',
+      })
+      feedJson = await feedResponse.json().catch(() => null)
+    }
+  }
   if (!feedResponse.ok) {
     const apiMessage = feedJson?.error?.message ?? 'No se pudo publicar el carrusel en Facebook.'
     return { ok: false, detail: `Meta API rechazo el carrusel: ${apiMessage}`, externalId: null }
@@ -644,6 +704,7 @@ async function publishWithRetry(input: {
   platform: PlatformName
   contentType: 'post' | 'reel' | 'story' | 'carousel'
   caption: string
+  postTitle: string
   mediaUrl: string
   mediaType: 'image' | 'video'
   instagramUserId: string | null
@@ -1034,17 +1095,14 @@ export async function processScheduledPublications(
       }
 
       const shouldCarousel = imageUrls.length >= 2 && activePost.contentType !== 'story'
-      const platformCaption =
-        platform === 'facebook'
-          ? appendConsultationCta(publishCaption, { pageId: account.pageId, title: activePost.title })
-          : publishCaption
       let publishedResult: Awaited<ReturnType<typeof publishToMetaPlatform>>
 
       if (!shouldCarousel) {
         publishedResult = await publishWithRetry({
           platform,
           contentType: activePost.contentType,
-          caption: platformCaption,
+          caption: publishCaption,
+          postTitle: activePost.title,
           mediaUrl: primary.url,
           mediaType: primary.type,
           instagramUserId: account.instagramUserId,
@@ -1057,7 +1115,8 @@ export async function processScheduledPublications(
           const carouselResult = await publishFacebookCarousel({
             pageId: account.pageId || '',
             accessToken: account.accessToken,
-            caption: platformCaption,
+            caption: publishCaption,
+            postTitle: activePost.title,
             mediaUrls: imageUrls,
           })
 
@@ -1070,7 +1129,8 @@ export async function processScheduledPublications(
             const fallback = await publishWithRetry({
               platform,
               contentType: activePost.contentType,
-              caption: platformCaption,
+              caption: publishCaption,
+              postTitle: activePost.title,
               mediaUrl: primary.url,
               mediaType: primary.type,
               instagramUserId: account.instagramUserId,
@@ -1091,7 +1151,8 @@ export async function processScheduledPublications(
           publishedResult = await publishWithRetry({
             platform,
             contentType: activePost.contentType,
-            caption: platformCaption,
+            caption: publishCaption,
+            postTitle: activePost.title,
             mediaUrl: primary.url,
             mediaType: primary.type,
             instagramUserId: account.instagramUserId,
@@ -1118,7 +1179,8 @@ export async function processScheduledPublications(
             const fallback = await publishWithRetry({
               platform,
               contentType: activePost.contentType,
-              caption: platformCaption,
+              caption: publishCaption,
+              postTitle: activePost.title,
               mediaUrl: primary.url,
               mediaType: primary.type,
               instagramUserId: account.instagramUserId,
@@ -1139,7 +1201,8 @@ export async function processScheduledPublications(
           publishedResult = await publishWithRetry({
             platform,
             contentType: activePost.contentType,
-            caption: platformCaption,
+            caption: publishCaption,
+            postTitle: activePost.title,
             mediaUrl: primary.url,
             mediaType: primary.type,
             instagramUserId: account.instagramUserId,
